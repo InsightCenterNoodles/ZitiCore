@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		2D0D768C2D36B8E2002EA8AA /* ZitiCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2D0D76812D36B8E1002EA8AA /* ZitiCore.framework */; };
+		2D0D76D12D36BD4E002EA8AA /* Starscream in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0D76D02D36BD4E002EA8AA /* Starscream */; };
+		2D0D76D42D36BD57002EA8AA /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0D76D32D36BD57002EA8AA /* SwiftCBOR */; };
+		2D0D76D72D36BF68002EA8AA /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2D0D76D62D36BF68002EA8AA /* RealityKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,6 +26,7 @@
 /* Begin PBXFileReference section */
 		2D0D76812D36B8E1002EA8AA /* ZitiCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ZitiCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D0D768B2D36B8E2002EA8AA /* ZitiCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZitiCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D0D76D62D36BF68002EA8AA /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,6 +60,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D0D76D72D36BF68002EA8AA /* RealityKit.framework in Frameworks */,
+				2D0D76D42D36BD57002EA8AA /* SwiftCBOR in Frameworks */,
+				2D0D76D12D36BD4E002EA8AA /* Starscream in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -75,6 +82,7 @@
 			children = (
 				2D0D76832D36B8E1002EA8AA /* ZitiCore */,
 				2D0D768F2D36B8E2002EA8AA /* ZitiCoreTests */,
+				2D0D76D52D36BF68002EA8AA /* Frameworks */,
 				2D0D76822D36B8E1002EA8AA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -86,6 +94,14 @@
 				2D0D768B2D36B8E2002EA8AA /* ZitiCoreTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2D0D76D52D36BF68002EA8AA /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2D0D76D62D36BF68002EA8AA /* RealityKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -119,6 +135,8 @@
 			);
 			name = ZitiCore;
 			packageProductDependencies = (
+				2D0D76D02D36BD4E002EA8AA /* Starscream */,
+				2D0D76D32D36BD57002EA8AA /* SwiftCBOR */,
 			);
 			productName = ZitiCore;
 			productReference = 2D0D76812D36B8E1002EA8AA /* ZitiCore.framework */;
@@ -174,6 +192,10 @@
 			);
 			mainGroup = 2D0D76772D36B8E1002EA8AA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				2D0D76CF2D36BD4E002EA8AA /* XCRemoteSwiftPackageReference "Starscream" */,
+				2D0D76D22D36BD57002EA8AA /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2D0D76822D36B8E1002EA8AA /* Products */;
 			projectDirPath = "";
@@ -257,6 +279,7 @@
 				SUPPORTED_PLATFORMS = "xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 7;
 			};
@@ -291,6 +314,7 @@
 				SUPPORTED_PLATFORMS = "xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 7;
 			};
@@ -486,6 +510,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2D0D76CF2D36BD4E002EA8AA /* XCRemoteSwiftPackageReference "Starscream" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/daltoniam/Starscream";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.8;
+			};
+		};
+		2D0D76D22D36BD57002EA8AA /* XCRemoteSwiftPackageReference "SwiftCBOR" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/valpackett/SwiftCBOR";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2D0D76D02D36BD4E002EA8AA /* Starscream */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2D0D76CF2D36BD4E002EA8AA /* XCRemoteSwiftPackageReference "Starscream" */;
+			productName = Starscream;
+		};
+		2D0D76D32D36BD57002EA8AA /* SwiftCBOR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2D0D76D22D36BD57002EA8AA /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
+			productName = SwiftCBOR;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2D0D76782D36B8E1002EA8AA /* Project object */;
 }
