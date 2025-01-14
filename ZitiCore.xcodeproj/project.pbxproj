@@ -11,6 +11,7 @@
 		2D0D76D12D36BD4E002EA8AA /* Starscream in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0D76D02D36BD4E002EA8AA /* Starscream */; };
 		2D0D76D42D36BD57002EA8AA /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0D76D32D36BD57002EA8AA /* SwiftCBOR */; };
 		2D0D76D72D36BF68002EA8AA /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2D0D76D62D36BF68002EA8AA /* RealityKit.framework */; };
+		2D0D76E42D36F746002EA8AA /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 2D0D76E32D36F746002EA8AA /* README.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +28,7 @@
 		2D0D76812D36B8E1002EA8AA /* ZitiCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = ZitiCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D0D768B2D36B8E2002EA8AA /* ZitiCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ZitiCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2D0D76D62D36BF68002EA8AA /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
+		2D0D76E32D36F746002EA8AA /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -80,6 +82,7 @@
 		2D0D76772D36B8E1002EA8AA = {
 			isa = PBXGroup;
 			children = (
+				2D0D76E32D36F746002EA8AA /* README.md */,
 				2D0D76832D36B8E1002EA8AA /* ZitiCore */,
 				2D0D768F2D36B8E2002EA8AA /* ZitiCoreTests */,
 				2D0D76D52D36BF68002EA8AA /* Frameworks */,
@@ -212,6 +215,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2D0D76E42D36F746002EA8AA /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
