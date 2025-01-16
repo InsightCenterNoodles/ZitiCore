@@ -7,7 +7,7 @@
 
 import Foundation
 
-public func initialize() {
+public func initialize_ziti_core() {
     ParticleAdvectionComponent.registerComponent()
     AdvectionSpawnComponent.registerComponent()
     AdvectionSystem.registerSystem()

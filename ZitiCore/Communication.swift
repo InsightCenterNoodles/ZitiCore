@@ -25,7 +25,7 @@ public class NoodlesCommunicator {
     
     var capture_bounds : MTLCaptureScope
     
-    init(url: URL, world : NoodlesWorld) {
+    public init(url: URL, world : NoodlesWorld) {
         print("Starting connection to \(url.host() ?? "UNKNOWN")")
         
         capture_bounds = MTLCaptureManager.shared().makeCaptureScope(device: ComputeContext.shared.device)
@@ -148,7 +148,7 @@ public class NoodlesCommunicator {
     }
     
     @MainActor
-    func invoke_method(method: NooID, context: InvokeMessageOn, args: [CBOR], on_done: @escaping (MsgMethodReply) -> ()) {
+    public func invoke_method(method: NooID, context: InvokeMessageOn, args: [CBOR], on_done: @escaping (MsgMethodReply) -> ()) {
         world.invoke_method(method: method, context: context, args: args, on_done: on_done)
     }
 }

@@ -1139,7 +1139,7 @@ public class ComponentList<T: NoodlesComponent> {
 // MARK: World
 @MainActor
 public class NoodlesWorld {
-    weak var comm: NoodlesCommunicator?
+    public weak var comm: NoodlesCommunicator?
     
     // This is the entity that we branch all our generated entities off of
     var external_root: Entity
@@ -1397,7 +1397,7 @@ public class NoodlesWorld {
         root_entity.move(to: current_tf, relativeTo: root_entity.parent, duration: 2)
     }
     
-    func invoke_method(method: NooID, 
+    public func invoke_method(method: NooID,
                        context: InvokeMessageOn,
                        args: [CBOR],
                        on_done: ((MsgMethodReply) -> Void)? = nil
@@ -1420,7 +1420,7 @@ public class NoodlesWorld {
         comm!.send(msg: message)
     }
     
-    func invoke_method_by_name(method_name: String,
+    public func invoke_method_by_name(method_name: String,
                                context: InvokeMessageOn,
                                args: [CBOR],
                                on_done: ((MsgMethodReply) -> Void)? = nil
@@ -1438,5 +1438,46 @@ public class NoodlesWorld {
                 v.entity.components[InputTargetComponent.self] = c
             }
         }
+    }
+}
+
+public struct AvailableMethod: Identifiable, Hashable {
+    public var id = UUID()
+    public var noo_id : NooID
+    public var name : String
+    public var doc : String?
+    public var context: NooID?
+    public var context_type: String
+}
+
+@Observable public class MethodListObservable {
+    public var available_methods = [AvailableMethod]()
+    public var has_step_time = false
+    public var has_time_animate = false
+    
+    public init(available_methods: [AvailableMethod] = [AvailableMethod]()) {
+        self.available_methods = available_methods
+        self.has_step_time = false
+        self.has_time_animate = false
+    }
+    
+    @MainActor
+    public func reset_list(_ l: [AvailableMethod]) {
+        available_methods.removeAll()
+        available_methods = l
+        
+        has_step_time = available_methods.contains(where: { $0.name == CommonStrings.step_time })
+        has_time_animate = available_methods.contains(where: { $0.name == CommonStrings.step_time })
+        
+        dump(available_methods)
+    }
+    
+    public func has_any_time_methods() -> Bool {
+        return has_step_time || has_time_animate
+    }
+    
+    @MainActor
+    public func find_by_name(_ name: String) -> AvailableMethod? {
+        return available_methods.first(where: { $0.name == name })
     }
 }

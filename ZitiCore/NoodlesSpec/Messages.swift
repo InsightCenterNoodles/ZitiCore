@@ -378,13 +378,13 @@ func force_to_int64(_ c: CBOR) -> Int64 {
 
 // MARK: Noodles ID
 
-struct NooID : Codable, Equatable, Hashable {
+public struct NooID : Codable, Equatable, Hashable {
     var slot: UInt32
     var gen : UInt32
     
     static var NULL = NooID(s: UInt32.max, g: UInt32.max)
     
-    init(s: UInt32, g: UInt32) {
+    public init(s: UInt32, g: UInt32) {
         slot = s
         gen = g
     }
@@ -449,7 +449,7 @@ struct IntroductionMessage : NoodlesMessage {
     }
 }
 
-enum InvokeMessageOn {
+public enum InvokeMessageOn {
 case Document
 case Entity(NooID)
 }
@@ -1311,7 +1311,7 @@ struct MsgSignalInvoke : NoodlesServerMessage {
 
 // MARK: Method Reply
 
-struct MethodReplyException {
+public struct MethodReplyException {
     var code: Int64
     var message: String?
     var data: CBOR?
@@ -1325,7 +1325,7 @@ struct MethodReplyException {
     }
 }
 
-struct MsgMethodReply : NoodlesServerMessage  {
+public struct MsgMethodReply : NoodlesServerMessage  {
     /*
      MethodException = {
          code : int,
