@@ -6,7 +6,7 @@
 //
 
 @MainActor
-protocol NoodlesComponent {
+public protocol NoodlesComponent {
     func create(world: NoodlesWorld);
     func destroy(world: NoodlesWorld);
 }

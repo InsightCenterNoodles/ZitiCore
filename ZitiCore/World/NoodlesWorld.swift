@@ -1109,7 +1109,7 @@ func extract_line(_ data: Data, base_offset: Int, acount: Int) -> (NooFlowLine, 
 }
 
 @MainActor
-class ComponentList<T: NoodlesComponent> {
+public class ComponentList<T: NoodlesComponent> {
     var list : Dictionary<UInt32, T> = [:]
     
     func set(_ id: NooID, _ val : T, _ world: NoodlesWorld) {
@@ -1138,48 +1138,48 @@ class ComponentList<T: NoodlesComponent> {
 
 // MARK: World
 @MainActor
-class NoodlesWorld {
+public class NoodlesWorld {
     weak var comm: NoodlesCommunicator?
     
     // This is the entity that we branch all our generated entities off of
     var external_root: Entity
     
-    public var methods_list = ComponentList<NooMethod>()
-    public var method_list_lookup = [String: NooMethod]()
+    internal var methods_list = ComponentList<NooMethod>()
+    internal var method_list_lookup = [String: NooMethod]()
     //public var signals_list = ComponentList<MsgSignalCreate>()
     
-    public var entity_list = ComponentList<NooEntity>()
+    internal var entity_list = ComponentList<NooEntity>()
     //public var plot_list = ComponentList<MsgPlotCreate>()
     //public var table_list = ComponentList<MsgTableCreate>()
     
-    public var material_list = ComponentList<NooMaterial>()
+    internal var material_list = ComponentList<NooMaterial>()
     
-    public var geometry_list = ComponentList<NooGeometry>()
+    internal var geometry_list = ComponentList<NooGeometry>()
     
     //public var light_list = ComponentList<MsgLightCreate>()
     
-    public var image_list = ComponentList<NooImage>()
-    public var texture_list = ComponentList<NooTexture>()
-    public var sampler_list = ComponentList<NooSampler>()
+    internal var image_list = ComponentList<NooImage>()
+    internal var texture_list = ComponentList<NooTexture>()
+    internal var sampler_list = ComponentList<NooSampler>()
     //public var signal_list = ComponentList<MsgSignalCreate>()
     
-    public var buffer_view_list = ComponentList<NooBufferView>()
-    public var buffer_list = ComponentList<NooBuffer>()
+    internal var buffer_view_list = ComponentList<NooBufferView>()
+    internal var buffer_list = ComponentList<NooBuffer>()
     
-    public var physics_list = ComponentList<NooPhysics>()
+    internal var physics_list = ComponentList<NooPhysics>()
     
-    public var attached_method_list = [NooMethod]()
-    public var visible_method_list: MethodListObservable
+    internal var attached_method_list = [NooMethod]()
+    internal var visible_method_list: MethodListObservable
     
-    public var invoke_mapper = [String:(MsgMethodReply) -> ()]()
+    internal var invoke_mapper = [String:(MsgMethodReply) -> ()]()
     
     var root_entity : Entity
-    var root_controller: Entity
+    public var root_controller: Entity
     
     //var instance_test: GlyphInstances
     
     @MainActor
-    init(_ root: Entity, _ doc_method_list: MethodListObservable, initial_offset: simd_float3 = .zero) async {
+    public init(_ root: Entity, _ doc_method_list: MethodListObservable, initial_offset: simd_float3 = .zero) async {
         self.visible_method_list = doc_method_list
         
         external_root = root
@@ -1349,7 +1349,7 @@ class NoodlesWorld {
         }
     }
     
-    func clear() {
+    public func clear() {
         entity_list.clear(self)
         material_list.clear(self)
         geometry_list.clear(self)
@@ -1357,7 +1357,7 @@ class NoodlesWorld {
         image_list.clear(self)
     }
     
-    func frame_all(target_volume : SIMD3<Float>) {
+    public func frame_all(target_volume : SIMD3<Float>) {
         
         // check if we need to just reset scale
         
@@ -1430,7 +1430,7 @@ class NoodlesWorld {
         invoke_method(method: mthd.info.id, context: context, args: args, on_done: on_done)
     }
     
-    func set_all_entity_input(enabled: Bool) {
+    public func set_all_entity_input(enabled: Bool) {
         print("Setting input component", enabled)
         for (_,v) in entity_list.list {
             if var c = v.entity.components[InputTargetComponent.self] {

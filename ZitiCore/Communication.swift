@@ -15,13 +15,13 @@ import Starscream
 // we need a task that just gets messages ready here
 // and another task on the main thread that reads the queue and handles them
 
-class NoodlesCommunicator {
+public class NoodlesCommunicator {
     var url: URL
     var socket : WebSocket!
     var queue = DispatchQueue(label: "gov.nrel.noodles.ziti")
     var scene : (any RealityViewContentProtocol)!
     var decoder : MessageDecoder
-    var world : NoodlesWorld
+    public var world : NoodlesWorld
     
     var capture_bounds : MTLCaptureScope
     

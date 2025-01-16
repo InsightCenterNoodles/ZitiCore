@@ -24,7 +24,7 @@ class DecodeInfo {
     }
 }
 
-protocol NoodlesMessage {
+public protocol NoodlesMessage {
     static var message_id: Int { get }
     
     func to_cbor() -> CBOR

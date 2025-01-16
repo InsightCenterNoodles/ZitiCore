@@ -71,11 +71,11 @@ func make_advection_component(context: ParticleContext) -> ParticleAdvectionComp
     
 }
 
-class GlobalAdvectionSettings {
-    static var shared = GlobalAdvectionSettings()
+public class GlobalAdvectionSettings {
+    public static var shared = GlobalAdvectionSettings()
     
     // this should be in meters per second
-    var advection_speed = 1.0;
+    public var advection_speed = 1.0;
 }
 
 func packed_to_float(_ packed: MTLPackedFloat3) -> SIMD3<Float> {
