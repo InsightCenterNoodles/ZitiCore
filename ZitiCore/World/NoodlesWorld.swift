@@ -567,6 +567,11 @@ class NooEntity : NoodlesComponent {
             
             if abilities.can_move || abilities.can_rotate || abilities.can_scale {
                 install_gesture_control(world)
+                
+                if world.set_item_input_cached {
+                    set_input_enabled(enabled: true)
+                }
+                
             } else {
                 if entity.components.has(GestureComponent.self) {
                     entity.components.remove(GestureComponent.self);
@@ -577,6 +582,14 @@ class NooEntity : NoodlesComponent {
         if let visibility = msg.visible {
             //dump(msg)
             entity.isEnabled = visibility
+        }
+        
+        if let billboard = msg.billboard {
+            if (billboard) {
+                entity.components.set(BillboardComponent())
+            } else {
+                entity.components.remove(BillboardComponent.self)
+            }
         }
     }
     
@@ -617,17 +630,15 @@ class NooEntity : NoodlesComponent {
         entity.components.set(HoverEffectComponent(
             .highlight(.init(color: .systemBlue, strength: 5.0))
         ))
+        
+        entity.components.set(InputTargetComponent())
     }
     
     @MainActor
     func create(world: NoodlesWorld) {
         //world.scene.add(entity)
         world.root_entity.addChild(entity)
-        
-        var input = InputTargetComponent()
-        input.isEnabled = false
-        entity.components.set(input)
-        
+
         common(world: world, msg: last_info)
         
         //print("Created entity")
@@ -731,32 +742,49 @@ class NooEntity : NoodlesComponent {
         
         let geom = prep.geometry
         
-        var bb = BoundingBox()
-        
         if let instances = rep.instances {
             print("Noodles ent has instances, building")
             
-            guard let (new_subs, new_bb) = build_instance_representation(instances, prep, world) else {
+            guard let (new_subs, _) = build_instance_representation(instances, prep, world) else {
                 return []
             }
             
             subs = new_subs
-            bb = new_bb
             
         } else {
             for (mat, mesh) in zip(geom.mesh_materials, geom.get_mesh_resources()) {
                 let new_entity = ModelEntity(mesh: mesh, materials: [mat])
                 subs.append(new_entity)
             }
-            
-            bb = geom.get_bounding_box()
         }
 
-        let cc = CollisionComponent(shapes: [ShapeResource.generateBox(size: bb.extents).offsetBy(translation: bb.center)]);
         
-        entity.components.set(cc);
         
         return subs
+    }
+    
+    @MainActor
+    func set_input_enabled(enabled: Bool) {
+        guard var c = entity.components[InputTargetComponent.self] else {
+            return
+        }
+        
+        c.isEnabled = enabled
+        
+        if enabled {
+            var bb = BoundingBox()
+            for sub_entity in sub_entities {
+                if let geom = sub_entity.components[ModelComponent.self] {
+                    bb = bb.union(geom.mesh.bounds)
+                }
+            }
+            
+            let cc = CollisionComponent(shapes: [ShapeResource.generateBox(size: bb.extents).offsetBy(translation: bb.center)]);
+            
+            entity.components.set(cc);
+        } else {
+            entity.components.remove(CollisionComponent.self)
+        }
     }
     
     @MainActor
@@ -1173,6 +1201,8 @@ public class NoodlesWorld {
     
     internal var invoke_mapper = [String:(MsgMethodReply) -> ()]()
     
+    var set_item_input_cached : Bool = false
+    
     var root_entity : Entity
     public var root_controller: Entity
     
@@ -1432,11 +1462,9 @@ public class NoodlesWorld {
     
     public func set_all_entity_input(enabled: Bool) {
         print("Setting input component", enabled)
+        set_item_input_cached = enabled
         for (_,v) in entity_list.list {
-            if var c = v.entity.components[InputTargetComponent.self] {
-                c.isEnabled = enabled
-                v.entity.components[InputTargetComponent.self] = c
-            }
+            v.set_input_enabled(enabled: enabled)
         }
     }
 }

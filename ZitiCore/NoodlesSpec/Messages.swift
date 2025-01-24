@@ -635,6 +635,8 @@ struct MsgEntityCreate : NoodlesServerMessage {
 
          ? influence : BoundingBox,
          ? visible : bool, ; default to true
+        
+        ? billboard: bool ; default to false
      */
     
     var id : NooID
@@ -652,6 +654,7 @@ struct MsgEntityCreate : NoodlesServerMessage {
     var methods_list : [NooID]?
     var signals_list : [NooID]?
     var visible : Bool?
+    var billboard: Bool?
     
     
     static func from_cbor(c: CBOR, info: DecodeInfo) -> Self {
@@ -674,6 +677,8 @@ struct MsgEntityCreate : NoodlesServerMessage {
         ret.methods_list = NooID.array_from_cbor(c["methods_list"])
         
         ret.visible = to_bool(c["visible"])
+        
+        ret.billboard = to_bool(c["billboard"])
         
         return ret
     }
