@@ -727,14 +727,19 @@ struct MsgBufferCreate : NoodlesServerMessage {
         }
         
         if let iline = m["inline_bytes"] {
+            print("Creating buffer with builtin bytes...")
             if case let CBOR.byteString(array) = iline {
+                print("Valid bytestring: \(array.count)")
+                //assert(array.count > 0)
                 ret.bytes = Data(array)
             }
         }
         
         if let oline = to_location(m["uri_bytes"]) {
+            print("Fetching bytes from \(oline)")
             let real_loc = oline.to_url(current_host: info.current_host)
             if let dl = try? Data(contentsOf: real_loc!) {
+                print("Valid download: \(dl.count)")
                 ret.bytes = dl
             }
         }
@@ -772,7 +777,7 @@ struct MsgBufferViewCreate : NoodlesServerMessage {
     }
     
     func get_slice(data: Data, view_offset: Int64) -> Data {
-        // get the orig ending
+        // We want the ending of the actual buffer view here
         let ending = offset + length
         let total_offset = offset + view_offset
         return data[total_offset ..< ending]
@@ -1149,73 +1154,6 @@ struct GeomPatch {
             indices = GeomIndex(idx)
         }
         
-        //var new_descriptor = MeshDescriptor()
-        
-        print("Caching geometry info")
-        
-        
-//        for attribute in attributes {
-//            let buffer_view = info.buffer_view_cache[attribute.view.slot]!
-//            let buffer = info.buffer_cache[buffer_view.source_buffer.slot]!
-//            
-//            let slice = buffer_view.get_slice(data: buffer.bytes, view_offset: attribute.offset)
-//            
-//            
-//            switch attribute.semantic {
-//            case "POSITION":
-//                let attrib_data = realize_vec3(slice, VAttribFormat.V3, vcount: Int(vertex_count), stride: Int(attribute.stride))
-//                new_descriptor.positions = MeshBuffers.Positions(attrib_data);
-//                
-//                //print("Caching positions: ", positions!.count)
-//                
-//            case "TEXTURE":
-//                switch attribute.format {
-//                case "VEC2":
-//                    let attrib_data = realize_tex_vec2(slice, vcount: Int(vertex_count), stride: Int(attribute.stride))
-//                    new_descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(attrib_data);
-//                    //print("Caching textures: ", textures!.count)
-//                case "U16VEC2":
-//                    let attrib_data = realize_tex_u16vec2(slice, vcount: Int(vertex_count), stride: Int(attribute.stride))
-//                    new_descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(attrib_data);
-//                    //print("Caching textures: ", textures!.count)
-//                default:
-//                    print("Unknown texture coord format \(attribute.format)")
-//                }
-//                
-//            case "NORMAL":
-//                let attrib_data = realize_vec3(slice, VAttribFormat.V3, vcount: Int(vertex_count), stride: Int(attribute.stride))
-//                new_descriptor.normals = MeshBuffers.Normals(attrib_data);
-//                
-//            default:
-//                print("Not handling attribute \(attribute.semantic)")
-//                break;
-//            }
-//        }
-//        
-//        if let idx = indices {
-//            let buffer_view = info.buffer_view_cache[idx.view.slot]!
-//            let buffer = info.buffer_cache[buffer_view.source_buffer.slot]!
-//            
-//            let byte_count : Int64;
-//            switch idx.format {
-//            case "U8":
-//                byte_count = idx.count
-//            case "U16":
-//                byte_count = idx.count*2
-//            case "U32":
-//                byte_count = idx.count*4
-//            default:
-//                fatalError("unknown index format")
-//            }
-//            
-//            let bytes = buffer_view.get_slice(data: buffer.bytes, view_offset: idx.offset, override_length: byte_count)
-//            
-//            let idx_list = msg_realize_index(bytes, idx)
-//            //print("Caching indicies: ", prims!.count)
-//            new_descriptor.primitives = .triangles(idx_list)
-//        }
-        
-        //self.resource = patch_to_low_level_mesh(attributes: attributes, index: indices, primitive: type, vertex_count: vertex_count, info: info)!
     }
 }
 

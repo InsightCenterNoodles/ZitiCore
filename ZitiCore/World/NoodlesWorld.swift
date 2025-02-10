@@ -187,9 +187,6 @@ class NooImage : NoodlesComponent {
     func create(world: NoodlesWorld) {
         let src_bytes = get_slice(world: world)
         
-        //let is_jpg = src_bytes.starts(with: [0xFF, 0xD8, 0xFF])
-        //let is_png = src_bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-        
         image = transform_image(image: data_to_cgimage(data: src_bytes)!)
         
         print("Creating image: \(image.width)x\(image.height)");
@@ -197,14 +194,18 @@ class NooImage : NoodlesComponent {
     
     func get_slice(world: NoodlesWorld) -> Data {
         if let d = info.saved_bytes {
+            print("Cached results for image")
             return d
         }
         
         if let v_id = info.buffer_source {
             if let v = world.buffer_view_list.get(v_id) {
+                print("Getting image slice")
                 return v.get_slice(offset: 0)
             }
         }
+        
+        print("Warning! Unable to get a valid slice for an image!")
         
         return Data()
     }
@@ -1246,6 +1247,8 @@ public class NoodlesWorld {
 //                                      materials: [ PhysicallyBasedMaterial() ])
 //        
 //        root_entity.addChild(test_entity)
+        
+        print("New NOODLES world", Unmanaged.passUnretained(self).toOpaque())
     }
     
     @MainActor

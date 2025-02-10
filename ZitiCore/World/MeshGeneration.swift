@@ -9,7 +9,6 @@ import Foundation
 import RealityKit
 import Metal
 
-
 func make_root_handle() async  -> ModelEntity{
     var descriptor = UnlitMaterial.Program.Descriptor()
     
@@ -326,7 +325,6 @@ private func format_to_stride(format_str: String) -> Int64 {
 func patch_to_low_level_mesh(patch: GeomPatch,
                              world: NoodlesWorld) -> LowLevelMesh? {
     //print("Patch to low-level mesh")
-    //dump(patch)
     // these have format, layout index, offset from start of vertex data, and semantic
     var ll_attribs = [LowLevelMesh.Attribute]()
     
@@ -372,6 +370,8 @@ func patch_to_low_level_mesh(patch: GeomPatch,
         if ll_semantic == .position {
             position_bb = determine_bounding_box(attribute: attribute, vertex_count: Int(patch.vertex_count), world: world)
         }
+        
+        print("SEMANTICS \(ll_semantic) \(ll_format)")
         
         let layout_index = {
             if let layout_index = layout_mapping[key] {
@@ -433,35 +433,35 @@ func patch_to_low_level_mesh(patch: GeomPatch,
     // now execute uploads
     
     for (k,v) in layout_mapping {
-        //dump((k,v))
         let buffer_view = world.buffer_view_list.get(k.view_id)!
-        //let buffer = buffer_view.buffer!
         
         let slice = buffer_view.get_slice(offset: 0)
+        
         lowLevelMesh.replaceUnsafeMutableBytes(bufferIndex: v, { ptr in
-            //print("Uploading mesh data \(ptr.count)")
-            let _ = slice.copyBytes(to: ptr)
-            //print("Uploaded \(res)")
+            print("Uploading mesh data \(ptr.count)")
+            let res = slice.copyBytes(to: ptr)
+            print("Uploaded \(res)")
         })
     }
     
     if let index_info = patch.indices {
+        dump(index_info)
         
         let buffer_view = world.buffer_view_list.get(index_info.view)!
         
         let bytes = buffer_view.get_slice(offset: index_info.offset)
         
         lowLevelMesh.replaceUnsafeMutableIndices { ptr in
-            //print("Uploading index data \(ptr.count)")
-            let _ = bytes.copyBytes(to: ptr)
-            //print("Uploaded \(res)")
+            print("Uploading index data \(ptr.count)")
+            let res = bytes.copyBytes(to: ptr)
+            print("Uploaded \(res)")
         }
         
         guard let index_type = determine_index_type(patch: patch) else {
             return nil
         }
         
-        //print("Installing index part \(index_type) bb: \(resolved_bb)")
+        print("Installing index part \(index_type) bb: \(resolved_bb)")
         
         lowLevelMesh.parts.replaceAll([
             .init(indexOffset: 0, indexCount: Int(index_info.count), topology: index_type, materialIndex: 0, bounds: resolved_bb)

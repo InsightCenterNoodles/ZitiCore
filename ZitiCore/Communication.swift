@@ -26,7 +26,7 @@ public class NoodlesCommunicator {
     var capture_bounds : MTLCaptureScope
     
     public init(url: URL, world : NoodlesWorld) {
-        print("Starting connection to \(url.host() ?? "UNKNOWN")")
+        print("Starting connection to \(url.host() ?? "UNKNOWN") at \(url.port ?? 50000)")
         
         capture_bounds = MTLCaptureManager.shared().makeCaptureScope(device: ComputeContext.shared.device)
         
