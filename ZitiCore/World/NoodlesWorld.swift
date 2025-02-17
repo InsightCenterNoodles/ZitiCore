@@ -473,10 +473,10 @@ class NooEntity : NoodlesComponent {
             case .matrix(let mat):
                 handle_new_tf(world, transform: mat)
                 break;
-            case .qr_code(let identifier):
+            case .qr_code(_):
                 //
                 break;
-            case .geo_coordinates(let location):
+            case .geo_coordinates(_):
                 //
                 break;
             }
