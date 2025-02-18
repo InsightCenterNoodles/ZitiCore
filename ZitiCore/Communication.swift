@@ -88,6 +88,15 @@ public class NoodlesCommunicator {
         } else {
             print("websocket encountered an error")
         }
+        
+        handle_no_server()
+    }
+    
+    func handle_no_server() {
+        DispatchQueue.main.async {
+            self.world.root_entity.isEnabled = false
+            self.world.error_entity.isEnabled = true
+        }
     }
     
     func on_recv_cb(event: Starscream.WebSocketEvent) {
@@ -119,7 +128,7 @@ public class NoodlesCommunicator {
             //isConnected = false
             handle_ws_error(error)
         case .peerClosed:
-           break
+            handle_no_server()
         }
     }
     

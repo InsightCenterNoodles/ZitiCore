@@ -1173,6 +1173,9 @@ public class NoodlesWorld {
     // This is the entity that we branch all our generated entities off of
     var external_root: Entity
     
+    // This is the entity we make visible when things go wrong
+    var error_entity: Entity
+    
     internal var methods_list = ComponentList<NooMethod>()
     internal var method_list_lookup = [String: NooMethod]()
     //public var signals_list = ComponentList<MsgSignalCreate>()
@@ -1204,14 +1207,17 @@ public class NoodlesWorld {
     
     var set_item_input_cached : Bool = false
     
-    var root_entity : Entity
+    public var root_entity : Entity
     public var root_controller: Entity
     
     //var instance_test: GlyphInstances
     
     @MainActor
-    public init(_ root: Entity, _ doc_method_list: MethodListObservable, initial_offset: simd_float3 = .zero) async {
+    public init(_ root: Entity, _ error_entity: Entity, _ doc_method_list: MethodListObservable, initial_offset: simd_float3 = .zero) async {
         self.visible_method_list = doc_method_list
+        self.error_entity = error_entity
+        
+        self.error_entity.isEnabled = false
         
         external_root = root
         
