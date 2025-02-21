@@ -46,6 +46,10 @@ public class EntityGestureState {
     /// Marks whether the app is currently handling a rotation gesture.
     var isRotating = false
     
+    // MARK: - Tap
+    
+    var isTapping = false
+    
     // MARK: - Singleton Accessor
     
     /// Retrieves the shared instance.
@@ -78,6 +82,8 @@ public struct GestureComponent: Component, Codable {
     
     /// A Boolean value that indicates whether a gesture can rotate the entity.
     public var canRotate: Bool = true
+    
+    public var canTap: Bool = true
     
     // MARK: - Drag Logic
     
@@ -259,6 +265,27 @@ public struct GestureComponent: Component, Codable {
         EntityGestureState.shared.isRotating = false
     }
     
+    // MARK: - Tap Logic
+    
+    /// Handle `.onChanged` actions for tap  gestures.
+    mutating func onChanged(value: EntityTargetValue<SpatialTapGesture.Value>) {
+        // we never actually seem to get here. probably being confused with another gesture?
+    }
+    
+    /// Handle `.onChanged` actions for tap  gestures.
+    mutating func onEnded(value: EntityTargetValue<SpatialTapGesture.Value>) {
+        // we DEFINITELY get here when taps are done
+        
+        print("handling click")
+        guard let support = value.entity.components[GestureSupportComponent.self] else {
+            return
+        }
+        
+        print("sending click")
+        
+        support.world?.invoke_method_by_name(method_name: CommonStrings.activate, context: .Entity(support.noo_id), args: [])
+    }
+    
     // MARK: Customization of Gesture Support for Ziti
     
     func update_noodles() {
@@ -291,7 +318,7 @@ struct GestureSupportComponent : Component {
     
     @MainActor
     mutating func fire(e: Entity) {
-        print("Updating remote transforms for entity")
+        //print("Updating remote transforms for entity")
         guard let world else { return }
         
         let n_t = e.transform.translation
@@ -299,7 +326,7 @@ struct GestureSupportComponent : Component {
         let n_s = e.transform.scale
         
         if n_t != last_t {
-            print("sending translation ", n_t)
+            //print("sending translation ", n_t)
             world.invoke_method_by_name(
                 method_name: CommonStrings.set_position,
                 context: .Entity(noo_id),
@@ -309,7 +336,7 @@ struct GestureSupportComponent : Component {
         }
         
         if n_r != last_r {
-            print("sending rotation ", n_r)
+            //print("sending rotation ", n_r)
             let as_vec = n_r.vector;
             world.invoke_method_by_name(
                 method_name: CommonStrings.set_rotation,
@@ -320,7 +347,7 @@ struct GestureSupportComponent : Component {
         }
         
         if n_s != last_s {
-            print("sending scale ", n_s)
+            //print("sending scale ", n_s)
             world.invoke_method_by_name(
                 method_name: CommonStrings.set_scale,
                 context: .Entity(noo_id),
@@ -332,10 +359,10 @@ struct GestureSupportComponent : Component {
     }
     
     func complete(e: Entity) {
-        print("Checking if entity has server-mandated transform")
+        //print("Checking if entity has server-mandated transform")
         guard let tf = pending_transform else { return }
         
-        print("Setting transform")
+        //print("Setting transform")
         e.move(to: tf, relativeTo: e.parent, duration: 0.1)
     }
 }

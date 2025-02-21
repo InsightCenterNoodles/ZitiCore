@@ -109,6 +109,8 @@ struct MessageDecoder {
             return []
         }
         
+        //print("FROM SERVER: \(decoded)")
+        
         guard case let CBOR.array(array) = decoded else {
             default_log.critical("Malformed message from server: Message is not CBOR array")
             return []

@@ -39,10 +39,12 @@ class NooBuffer : NoodlesComponent {
     }
     
     func create(world: NoodlesWorld) {
-        print("Created buffer")
+        print("Created buffer: \(info.id)")
     }
     
-    func destroy(world: NoodlesWorld) { }
+    func destroy(world: NoodlesWorld) {
+        print("Deleted buffer: \(info.id)")
+    }
 }
 
 
@@ -58,8 +60,8 @@ class NooBufferView : NoodlesComponent {
     }
     
     func create(world: NoodlesWorld) {
+        print("Created buffer view: \(info.id) -> \(info.source_buffer)")
         buffer = world.buffer_list.get(info.source_buffer)!;
-        print("Created buffer view")
     }
     
     func get_slice(offset: Int64) -> Data {
@@ -70,7 +72,9 @@ class NooBufferView : NoodlesComponent {
         return info.get_slice(data: buffer.info.bytes, view_offset: offset, override_length: length)
     }
     
-    func destroy(world: NoodlesWorld) { }
+    func destroy(world: NoodlesWorld) {
+        print("Deleted buffer view: \(info.id)")
+    }
 }
 
 // MARK: Texture
@@ -263,7 +267,7 @@ class NooMaterial : NoodlesComponent {
     }
     
     func create(world: NoodlesWorld) {
-        print("Creating NooMaterial")
+        print("Creating NooMaterial: \(info.id)")
         
         var tri_mat = PhysicallyBasedMaterial()
         
@@ -321,6 +325,7 @@ class NooGeometry : NoodlesComponent {
     
     init(msg: MsgGeometryCreate) {
         info = msg
+        print("Creating geometry: \(info.id)")
     }
     
     func get_mesh_resources() -> [MeshResource] {
@@ -566,7 +571,7 @@ class NooEntity : NoodlesComponent {
             
             abilities = SpecialAbilities(methods)
             
-            if abilities.can_move || abilities.can_rotate || abilities.can_scale {
+            if abilities.can_move || abilities.can_rotate || abilities.can_scale || abilities.can_activate {
                 install_gesture_control(world)
                 
                 if world.set_item_input_cached {
@@ -601,7 +606,7 @@ class NooEntity : NoodlesComponent {
             let shared = EntityGestureState.shared
             if shared.targetedEntity == entity {
                 if shared.isDragging || shared.isRotating || shared.isScaling {
-                    print("Delaying transform update for entity!")
+                    //print("Delaying transform update for entity!")
                     entity.components[GestureSupportComponent.self]?.pending_transform = transform
                     return;
                 }
@@ -620,7 +625,8 @@ class NooEntity : NoodlesComponent {
         let gesture = GestureComponent(canDrag: abilities.can_move,
                                        pivotOnDrag: false,
                                        canScale: abilities.can_scale,
-                                       canRotate: abilities.can_rotate
+                                       canRotate: abilities.can_rotate,
+                                       canTap: abilities.can_activate
         )
         
         let support = GestureSupportComponent(
@@ -637,12 +643,13 @@ class NooEntity : NoodlesComponent {
     
     @MainActor
     func create(world: NoodlesWorld) {
-        //world.scene.add(entity)
         world.root_entity.addChild(entity)
+        
+        //print("Creating \(last_info.id)")
+        
+        entity.name = "noo_\(last_info.id)"
 
         common(world: world, msg: last_info)
-        
-        //print("Created entity")
     }
     
     func unset_representation(_ world: NoodlesWorld) {
@@ -805,6 +812,7 @@ class NooEntity : NoodlesComponent {
     func destroy(world: NoodlesWorld) {
         clear_subs(world)
         entity.removeFromParent()
+        //print("Deleting \(last_info.id)")
     }
     
 }

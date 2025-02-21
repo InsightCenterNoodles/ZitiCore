@@ -80,3 +80,27 @@ public extension Gesture where Value == EntityTargetValue<MagnifyGesture.Value> 
         }
     }
 }
+
+// MARK: - Tap -
+
+/// Gesture extension to support scale gestures.
+public extension Gesture where Value == EntityTargetValue<SpatialTapGesture.Value> {
+    
+    /// Connects the gesture input to the `GestureComponent` code.
+    func useGestureComponent() -> some Gesture {
+        onChanged { value in
+            guard var gestureComponent = value.entity.gestureComponent else { return }
+            
+            gestureComponent.onChanged(value: value)
+            
+            value.entity.components.set(gestureComponent)
+        }
+        .onEnded { value in
+            guard var gestureComponent = value.entity.gestureComponent else { return }
+            
+            gestureComponent.onEnded(value: value)
+            
+            value.entity.components.set(gestureComponent)
+        }
+    }
+}

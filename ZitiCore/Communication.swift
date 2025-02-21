@@ -22,15 +22,9 @@ public class NoodlesCommunicator {
     var scene : (any RealityViewContentProtocol)!
     var decoder : MessageDecoder
     public var world : NoodlesWorld
-    
-    var capture_bounds : MTLCaptureScope
-    
+
     public init(url: URL, world : NoodlesWorld) {
         print("Starting connection to \(url.host() ?? "UNKNOWN") at \(url.port ?? 50000)")
-        
-        capture_bounds = MTLCaptureManager.shared().makeCaptureScope(device: ComputeContext.shared.device)
-        
-        capture_bounds.label = "Noodles"
         
         self.url = url
         decoder = MessageDecoder(current_host: url.host()!)
@@ -41,8 +35,6 @@ public class NoodlesCommunicator {
         socket.callbackQueue = queue
         socket.onEvent = self.on_recv_cb
         socket.connect()
-        
-        MTLCaptureManager.shared().defaultCaptureScope = capture_bounds
     }
     
     public func send<T : NoodlesMessage>(msg: T) {
@@ -134,26 +126,14 @@ public class NoodlesCommunicator {
     
     @MainActor
     func handle_messages(mlist : [FromServerMessage]) {
-        // should be in the main thread at this point
-        
-//        let captureManager = MTLCaptureManager.shared()
-//        let captureDescriptor = MTLCaptureDescriptor()
-//        captureDescriptor.captureObject = capture_bounds
-//        
-//        do {
-//                try captureManager.startCapture(with: captureDescriptor)
-//            } catch {
-//                fatalError("error when trying to capture: \(error)")
-//            }
-//        
-        capture_bounds.begin()
+        //capture_bounds.begin()
         
         for m in mlist {
             //dump(m)
             world.handle_message(m)
         }
         
-        capture_bounds.end()
+        //capture_bounds.end()
     }
     
     @MainActor

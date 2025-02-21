@@ -16,7 +16,7 @@ public extension RealityView {
     func installGestures() -> some View {
         simultaneousGesture(dragGesture)
             .simultaneousGesture(magnifyGesture)
-            .simultaneousGesture(rotateGesture)
+            .simultaneousGesture(rotateGesture).simultaneousGesture(tapGesture)
     }
     
     /// Builds a drag gesture.
@@ -33,9 +33,15 @@ public extension RealityView {
             .useGestureComponent()
     }
     
-    /// Buildsa rotate gesture.
+    /// Builds a rotate gesture.
     var rotateGesture: some Gesture {
         RotateGesture3D()
+            .targetedToAnyEntity()
+            .useGestureComponent()
+    }
+    
+    var tapGesture: some Gesture {
+        SpatialTapGesture()
             .targetedToAnyEntity()
             .useGestureComponent()
     }
