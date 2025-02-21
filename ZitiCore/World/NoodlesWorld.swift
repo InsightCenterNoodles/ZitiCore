@@ -153,31 +153,31 @@ private func data_to_cgimage(data: Data) -> CGImage? {
     return CGImageSourceCreateImageAtIndex(image_source, 0, options as CFDictionary)
 }
 
-private func transform_image(image: CGImage) -> CGImage? {
-    let width = image.width
-    let height = image.height
-    let bitsPerComponent = image.bitsPerComponent
-    let bytesPerRow = image.bytesPerRow
-    let colorSpace = image.colorSpace
-    let bitmapInfo = image.bitmapInfo
-    
-    guard let context = CGContext(
-        data: nil,
-        width: width,
-        height: height,
-        bitsPerComponent: bitsPerComponent,
-        bytesPerRow: bytesPerRow,
-        space: colorSpace!,
-        bitmapInfo: bitmapInfo.rawValue
-    ) else { return nil }
-    
-    context.translateBy(x: 0, y: CGFloat(height))
-    context.scaleBy(x: 1.0, y: -1.0)
-    
-    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-    
-    return context.makeImage()
-}
+//private func transform_image(image: CGImage) -> CGImage? {
+//    let width = image.width
+//    let height = image.height
+//    let bitsPerComponent = image.bitsPerComponent
+//    let bytesPerRow = image.bytesPerRow
+//    let colorSpace = image.colorSpace
+//    let bitmapInfo = image.bitmapInfo
+//    
+//    guard let context = CGContext(
+//        data: nil,
+//        width: width,
+//        height: height,
+//        bitsPerComponent: bitsPerComponent,
+//        bytesPerRow: bytesPerRow,
+//        space: colorSpace!,
+//        bitmapInfo: bitmapInfo.rawValue
+//    ) else { return nil }
+//    
+//    context.translateBy(x: 0, y: CGFloat(height))
+//    context.scaleBy(x: 1.0, y: -1.0)
+//    
+//    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+//    
+//    return context.makeImage()
+//}
 
 class NooImage : NoodlesComponent {
     var info : MsgImageCreate
@@ -191,7 +191,7 @@ class NooImage : NoodlesComponent {
     func create(world: NoodlesWorld) {
         let src_bytes = get_slice(world: world)
         
-        image = transform_image(image: data_to_cgimage(data: src_bytes)!)
+        image = data_to_cgimage(data: src_bytes)!
         
         print("Creating image: \(image.width)x\(image.height)");
     }
@@ -270,6 +270,8 @@ class NooMaterial : NoodlesComponent {
         print("Creating NooMaterial: \(info.id)")
         
         var tri_mat = PhysicallyBasedMaterial()
+        
+        tri_mat.textureCoordinateTransform.scale = SIMD2<Float>(1.0, -1.0)
         
         tri_mat.baseColor = PhysicallyBasedMaterial.BaseColor.init(tint: info.pbr_info.base_color)
     

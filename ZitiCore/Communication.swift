@@ -83,11 +83,10 @@ public class NoodlesCommunicator {
     func on_message_data(data: Data) {
         // we handle decoding in this thread to avoid creating lots of small tasks.
         // normally this decode is quick
-        let slice = data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-            //let buffer = UnsafeBufferPointer(start: ptr, count: data.count)
-            return ArraySlice(ptr)
-        }
+        let slice = data.withUnsafeBytes { ArraySlice($0) }
         let messages = decoder.decode(bytes: slice)
+        
+        // If this is slow, we can use AsyncStream. Seems to be fairly efficient right now.
         DispatchQueue.main.async(group: nil, qos: DispatchQoS.userInteractive, flags: []) {
             self.handle_messages(mlist: messages)
         }
