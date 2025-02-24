@@ -79,12 +79,31 @@ class NooBufferView : NoodlesComponent {
 
 // MARK: Texture
 
+func generate_placeholder_image(width: Int, height: Int, color: UIColor) -> CGImage {
+    let context = CGContext(data: nil,
+                                  width: width, height: height,
+                                  bitsPerComponent: 8,
+                                  bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!
+
+    context.saveGState()
+    context.setFillColor(gray: 0, alpha: 1.0)
+    context.fill(CGRect(x: 0, y:0, width: width, height: height))
+
+    context.restoreGState()
+
+    return context.makeImage()!
+}
+
 class NooTexture : NoodlesComponent {
     var info : MsgTextureCreate
     
     var noo_world : NoodlesWorld!
     
     private var resources : [TextureResource.Semantic : TextureResource] = [:]
+    
+    static let placeholder = generate_placeholder_image(width: 32, height: 32, color: .gray)
     
     init(msg: MsgTextureCreate) {
         info = msg
@@ -107,9 +126,17 @@ class NooTexture : NoodlesComponent {
         
         // TODO: Update spec to help inform APIs about texture use
         do {
-            let resource = try TextureResource(image: img.image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
+            // create a placeholder
+            
+            let resource = try TextureResource(image: NooTexture.placeholder, options: .init(semantic: semantic));
             
             resources[semantic] = resource
+            
+            // now kick off installation of the REAL texture
+            
+            Task {
+                try await resource.replace(using: img.image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
+            }
             
             return resource
         } catch let error {
@@ -152,32 +179,6 @@ private func data_to_cgimage(data: Data) -> CGImage? {
     
     return CGImageSourceCreateImageAtIndex(image_source, 0, options as CFDictionary)
 }
-
-//private func transform_image(image: CGImage) -> CGImage? {
-//    let width = image.width
-//    let height = image.height
-//    let bitsPerComponent = image.bitsPerComponent
-//    let bytesPerRow = image.bytesPerRow
-//    let colorSpace = image.colorSpace
-//    let bitmapInfo = image.bitmapInfo
-//    
-//    guard let context = CGContext(
-//        data: nil,
-//        width: width,
-//        height: height,
-//        bitsPerComponent: bitsPerComponent,
-//        bytesPerRow: bytesPerRow,
-//        space: colorSpace!,
-//        bitmapInfo: bitmapInfo.rawValue
-//    ) else { return nil }
-//    
-//    context.translateBy(x: 0, y: CGFloat(height))
-//    context.scaleBy(x: 1.0, y: -1.0)
-//    
-//    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-//    
-//    return context.makeImage()
-//}
 
 class NooImage : NoodlesComponent {
     var info : MsgImageCreate
