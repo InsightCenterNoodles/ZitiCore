@@ -394,6 +394,7 @@ func patch_to_low_level_mesh(patch: GeomPatch,
     // if we dont have a bounding box, we never had a position attrib
     
     guard let resolved_bb = position_bb else {
+        print("Missing position semantic!")
         return nil
     }
     
@@ -408,6 +409,7 @@ func patch_to_low_level_mesh(patch: GeomPatch,
     case "U32":
         index_type = .uint32
     default:
+        print("Unsupported index type")
         return nil
     }
     
@@ -458,6 +460,7 @@ func patch_to_low_level_mesh(patch: GeomPatch,
         }
         
         guard let index_type = determine_index_type(patch: patch) else {
+            print("Unable to determine index type!")
             return nil
         }
         
