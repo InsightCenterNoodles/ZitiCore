@@ -83,6 +83,8 @@ public struct GestureComponent: Component, Codable {
     /// A Boolean value that indicates whether a gesture can rotate the entity.
     public var canRotate: Bool = true
     
+    public var lockRotateUpAxis: Bool = false
+    
     public var canTap: Bool = true
     
     // MARK: - Drag Logic
@@ -254,7 +256,19 @@ public struct GestureComponent: Component, Codable {
                                          axis: RotationAxis3D(x: -rotation.axis.x,
                                                               y: rotation.axis.y,
                                                               z: -rotation.axis.z))
-        let newOrientation = state.startOrientation.rotated(by: flippedRotation)
+        var newOrientation = state.startOrientation.rotated(by: flippedRotation)
+        
+        if lockRotateUpAxis {
+            
+            let forward = newOrientation.quaternion.act(simd_double3(0,0,-1))
+            
+            let flatForward = simd_double3(forward.x, 0, forward.z)
+            
+            let newRotation = simd_quatd(from: simd_double3(0,0,-1), to: flatForward)
+            
+            newOrientation = .init(newRotation)
+        }
+        
         entity.setOrientation(.init(newOrientation), relativeTo: nil)
         update_noodles()
     }
@@ -303,6 +317,25 @@ public struct GestureComponent: Component, Codable {
         
         e.components[GestureSupportComponent.self]?.complete(e: e)
     }
+}
+
+private func preserve_yaw_only(from matrix: simd_float4x4) -> simd_float4x4 {
+    // Extract the forward vector (Z-axis of the QR code)
+    let forward = simd_normalize(simd_float3(matrix.columns.2.x, 0, matrix.columns.2.z))
+    
+    // Extract right vector (X-axis) perpendicular to forward
+    let right = simd_cross(simd_float3(0, 1, 0), forward)
+    
+    // Y-axis remains the world up direction (0,1,0)
+    let up = simd_float3(0, 1, 0)
+    
+    // Construct the new rotation matrix
+    var ret = matrix
+    ret.columns.0 = simd_float4(right, 0)  // X-axis
+    ret.columns.1 = simd_float4(up, 0)     // Y-axis (remains unchanged)
+    ret.columns.2 = simd_float4(forward, 0) // Z-axis (flattened to horizontal)
+    
+    return ret
 }
 
 // MARK: Customizations for Ziti

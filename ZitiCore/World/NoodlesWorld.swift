@@ -1237,6 +1237,7 @@ public class NoodlesWorld {
         let bb = root_controller.visualBounds(relativeTo: root_controller.parent)
         var gesture = GestureComponent(canDrag: true, pivotOnDrag: false, canScale: true, canRotate: true)
         gesture.delegateToParent = true
+        gesture.lockRotateUpAxis = true
         let input = InputTargetComponent()
         let coll  = CollisionComponent(shapes: [ShapeResource.generateSphere(radius: bb.boundingRadius)])
         root_controller.components.set(gesture)
