@@ -29,6 +29,9 @@ public class NoodlesCommunicator {
     private var reconnect_attempts : Int = 0
     private var max_reconnect_attempts : Int = 8
     private var base_reconnect_delay : TimeInterval = 5
+    
+    private var message_stream: AsyncStream<[FromServerMessage]>!
+    private var continuation: AsyncStream<[FromServerMessage]>.Continuation?
 
     public init(url: URL, world : NoodlesWorld) {
         print("Starting connection to \(url.host() ?? "UNKNOWN") at \(url.port ?? 50000)")
@@ -41,7 +44,20 @@ public class NoodlesCommunicator {
         socket = WebSocket(request: request)
         socket.callbackQueue = queue
         socket.onEvent = self.on_recv_cb
+        
+        
+        let (stream, continuation) = AsyncStream<[FromServerMessage]>.makeStream()
+        self.message_stream = stream
+        self.continuation = continuation
+        
+        Task(priority: TaskPriority.userInitiated) {
+            for await messages in message_stream {
+                await self.handle_messages(mlist: messages)
+            }
+        }
+        
         socket.connect()
+        
     }
     
     public func connect() {
@@ -87,10 +103,11 @@ public class NoodlesCommunicator {
         let messages = decoder.decode(bytes: slice)
         
         // If this is slow, we can use AsyncStream. Seems to be fairly efficient right now.
-        DispatchQueue.main.async(group: nil, qos: DispatchQoS.userInteractive, flags: []) {
-            self.handle_messages(mlist: messages)
-        }
+        //DispatchQueue.main.async(group: nil, qos: DispatchQoS.userInteractive, flags: []) {
+        //    self.handle_messages(mlist: messages)
+        //}
         
+        continuation?.yield(messages)
     }
     
     func handle_ws_error(_ error: Error?) {
