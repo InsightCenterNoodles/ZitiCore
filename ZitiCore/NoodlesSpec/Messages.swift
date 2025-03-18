@@ -657,6 +657,7 @@ struct MsgEntityCreate : NoodlesServerMessage {
     var signals_list : [NooID]?
     var visible : Bool?
     var billboard: Bool?
+    var occlusion: Bool?
     
     
     static func from_cbor(c: CBOR, info: DecodeInfo) -> Self {
@@ -681,6 +682,8 @@ struct MsgEntityCreate : NoodlesServerMessage {
         ret.visible = to_bool(c["visible"])
         
         ret.billboard = to_bool(c["billboard"])
+        
+        ret.occlusion = to_bool(c["occlusion"])
         
         return ret
     }

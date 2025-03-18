@@ -494,7 +494,7 @@ class NooEntity : NoodlesComponent {
         if let _ = msg.null_rep {
             unset_representation(world);
         } else if let g = msg.rep {
-            //print("adding mesh rep")
+            //print("adding mesh rep \(entity.name)")
             // we need to obtain references to stuff in world to make sure we dont get clobbered
             // while doing work in another task
             let prep = NooEntityRenderPrep(
@@ -599,6 +599,20 @@ class NooEntity : NoodlesComponent {
             } else {
                 entity.components.remove(BillboardComponent.self)
             }
+        }
+        
+        if let occlusion = msg.occlusion {
+            
+            if occlusion {
+                for sub_entity in sub_entities {
+                    print("ADDING OCCLUSION \(entity.name)")
+                    if var model = sub_entity.components[ModelComponent.self] {
+                        print("ADDING OCCLUSION HERE \(model.materials.count)")
+                        model.materials[0] = OcclusionMaterial()
+                    }
+                }
+            }
+
         }
     }
     
@@ -764,7 +778,15 @@ class NooEntity : NoodlesComponent {
             
         } else {
             for (mat, mesh) in zip(geom.mesh_materials, geom.get_mesh_resources()) {
-                let new_entity = ModelEntity(mesh: mesh, materials: [mat])
+                var this_mat = mat;
+                
+                if let b = self.last_info.occlusion {
+                    if b {
+                        this_mat = OcclusionMaterial()
+                    }
+                }
+                
+                let new_entity = ModelEntity(mesh: mesh, materials: [this_mat])
                 subs.append(new_entity)
             }
         }

@@ -83,7 +83,11 @@ public struct GestureComponent: Component, Codable {
     /// A Boolean value that indicates whether a gesture can rotate the entity.
     public var canRotate: Bool = true
     
+    /// Force rotation to be around the up axis only
     public var lockRotateUpAxis: Bool = false
+    
+    /// Disable scaling while using the pinch gesture
+    public var lockScale: Bool = false
     
     public var canTap: Bool = true
     
