@@ -469,8 +469,12 @@ class NooEntity : NoodlesComponent {
         if let parent = msg.parent {
             // a set or unset?
             if parent.is_valid() {
-                let parent_ent = world.entity_list.get(parent)!
-                parent_ent.entity.addChild(entity)
+                if let parent_ent = world.entity_list.get(parent) {
+                    parent_ent.entity.addChild(entity)
+                } else {
+                    print("Unable to find parent. Misbehaving server??")
+                    world.root_entity.addChild(entity)
+                }
             } else {
                 world.root_entity.addChild(entity)
             }
