@@ -781,14 +781,14 @@ struct MsgBufferViewCreate : NoodlesServerMessage {
         return ret
     }
     
-    func get_slice(data: Data, view_offset: Int64) -> Data {
+    func get_slice(data: Data, view_offset: Int64) -> Data? {
         // We want the ending of the actual buffer view here
         let ending = offset + length
         let total_offset = offset + view_offset
         return data[total_offset ..< ending]
     }
     
-    func get_slice(data: Data, view_offset: Int64, override_length: Int64) -> Data {
+    func get_slice(data: Data, view_offset: Int64, override_length: Int64) -> Data? {
         let total_offset = offset + view_offset
         let ending = total_offset + override_length
         return data[total_offset ..< ending]

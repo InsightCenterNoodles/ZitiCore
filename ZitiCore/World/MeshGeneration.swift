@@ -64,7 +64,10 @@ func patch_to_glyph(_ p : GeomPatch?,
         let buffer_view = world.buffer_view_list.get(attribute.view)!
         let actual_stride = max(attribute.stride, format_to_stride(format_str: attribute.format))
         
-        let slice = buffer_view.get_slice(offset: attribute.offset)
+        guard let slice = buffer_view.get_slice(offset: attribute.offset) else {
+            print("Unable to get glyph data from slice!")
+            return nil
+        }
         
         switch attribute.semantic {
         case "POSITION":
@@ -108,7 +111,10 @@ func patch_to_glyph(_ p : GeomPatch?,
     }
     
     let index_buff_view = world.buffer_view_list.get(index_info.view)!
-    let index_bytes = index_buff_view.get_slice(offset: index_info.offset)
+    guard let index_bytes = index_buff_view.get_slice(offset: index_info.offset) else {
+        print("Unable to get index bytes for glyph!")
+        return nil
+    }
     
     let index = realize_index_u16(index_bytes, index_info)
     
@@ -257,7 +263,10 @@ func determine_bounding_box(attribute: GeomAttrib,
     
     let buffer_view = world.buffer_view_list.get(attribute.view)!
     
-    let data = buffer_view.get_slice(offset: attribute.offset);
+    guard let data = buffer_view.get_slice(offset: attribute.offset) else {
+        print("Unable to get data to determine bounding box, this is bad!")
+        return BoundingBox()
+    }
     
     var min_bb = SIMD3<Float>(repeating: Float32.greatestFiniteMagnitude)
     var max_bb = SIMD3<Float>(repeating: -Float32.greatestFiniteMagnitude)
@@ -437,7 +446,10 @@ func patch_to_low_level_mesh(patch: GeomPatch,
     for (k,v) in layout_mapping {
         let buffer_view = world.buffer_view_list.get(k.view_id)!
         
-        let slice = buffer_view.get_slice(offset: 0)
+        guard let slice = buffer_view.get_slice(offset: 0) else {
+            print("Unable to get mesh data from buffer view!")
+            return nil
+        }
         
         lowLevelMesh.replaceUnsafeMutableBytes(bufferIndex: v, { ptr in
             print("Uploading mesh data \(ptr.count)")
@@ -451,7 +463,10 @@ func patch_to_low_level_mesh(patch: GeomPatch,
         
         let buffer_view = world.buffer_view_list.get(index_info.view)!
         
-        let bytes = buffer_view.get_slice(offset: index_info.offset)
+        guard let bytes = buffer_view.get_slice(offset: index_info.offset) else {
+            print("Unable to get mesh index info from buffer view!")
+            return nil
+        }
         
         lowLevelMesh.replaceUnsafeMutableIndices { ptr in
             print("Uploading index data \(ptr.count)")

@@ -64,11 +64,11 @@ class NooBufferView : NoodlesComponent {
         buffer = world.buffer_list.get(info.source_buffer)!;
     }
     
-    func get_slice(offset: Int64) -> Data {
+    func get_slice(offset: Int64) -> Data? {
         return info.get_slice(data: buffer.info.bytes, view_offset: offset)
     }
     
-    func get_slice(offset: Int64, length: Int64) -> Data {
+    func get_slice(offset: Int64, length: Int64) -> Data? {
         return info.get_slice(data: buffer.info.bytes, view_offset: offset, override_length: length)
     }
     
@@ -124,6 +124,11 @@ class NooTexture : NoodlesComponent {
             return nil
         }
         
+        guard let texture_image = img.image else {
+            default_log.error("Image could not be generated!")
+            return nil
+        }
+        
         // TODO: Update spec to help inform APIs about texture use
         do {
             // create a placeholder
@@ -135,7 +140,7 @@ class NooTexture : NoodlesComponent {
             // now kick off installation of the REAL texture
             
             Task {
-                try await resource.replace(using: img.image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
+                try await resource.replace(using: texture_image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
             }
             
             return resource
@@ -183,21 +188,27 @@ private func data_to_cgimage(data: Data) -> CGImage? {
 class NooImage : NoodlesComponent {
     var info : MsgImageCreate
     
-    var image : CGImage!
+    var image : CGImage?
     
     init(msg: MsgImageCreate) {
         info = msg
     }
     
     func create(world: NoodlesWorld) {
-        let src_bytes = get_slice(world: world)
-        
-        image = data_to_cgimage(data: src_bytes)!
-        
-        print("Creating image: \(image.width)x\(image.height)");
+        if let src_bytes = get_slice(world: world) {
+            image = data_to_cgimage(data: src_bytes)
+            
+            if let img = image {
+                print("Creating image: \(img.width)x\(img.height)");
+            } else {
+                print("Unable to create image!");
+            }
+            
+            
+        }
     }
     
-    func get_slice(world: NoodlesWorld) -> Data {
+    func get_slice(world: NoodlesWorld) -> Data? {
         if let d = info.saved_bytes {
             print("Cached results for image")
             return d
@@ -212,7 +223,7 @@ class NooImage : NoodlesComponent {
         
         print("Warning! Unable to get a valid slice for an image!")
         
-        return Data()
+        return nil
     }
     
     func destroy(world: NoodlesWorld) { }
@@ -694,7 +705,11 @@ class NooEntity : NoodlesComponent {
             return nil
         }
         
-        let instance_data = v.get_slice(offset: 0)
+        guard let instance_data = v.get_slice(offset: 0) else {
+            print("Unable to get instance data")
+            return nil
+        }
+        
         let instance_count = instance_data.count / MemoryLayout<float4x4>.stride
         // just in case things arent quite rounded off
         let instances_byte_count = Int(instance_count) * MemoryLayout<float4x4>.stride
@@ -993,7 +1008,12 @@ class NooAdvectorState {
         }
         
         // since we cant do offsets of offsets here...
-        let data = buffer_view.get_slice(offset: Int64(sf.offset))
+        guard let data = buffer_view.get_slice(offset: Int64(sf.offset)) else {
+            print("Unable to get advector data");
+            lines = []
+            velocity = Grid3D(1, 1, 1, .zero)
+            return
+        }
         
         var cursor = 0
         
