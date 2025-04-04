@@ -9,127 +9,170 @@ import Foundation
 import RealityKit
 import Metal
 
-func make_root_handle() async  -> ModelEntity{
+/// Creates a small, highlightable root handle entity using an unlit additive material.
+/// Useful for interactive gizmos or anchor markers in 3D space.
+@MainActor
+func makeRootHandleEntity() async  -> ModelEntity{
     var descriptor = UnlitMaterial.Program.Descriptor()
-    
     descriptor.blendMode = .add
     
     let program = await UnlitMaterial.Program(descriptor: descriptor)
-    
     let material = UnlitMaterial(program: program)
     
-    let handle_entity = await ModelEntity(mesh: .generateSphere(radius: 0.01), materials: [material])
+    let handleEntity = ModelEntity(mesh: .generateSphere(radius: 0.01), materials: [material])
     
-    await handle_entity.components.set(HoverEffectComponent(
+    let hover_component = HoverEffectComponent(
         .highlight(.init(
             color: .systemBlue,
             strength: 5.0
         ))
-    ))
+    )
     
-    return handle_entity
+    handleEntity.components.set(hover_component)
+    
+    return handleEntity
 }
 
-func make_glyph(_ f : ()-> ([SIMD3<Float>], [SIMD3<Float>], [UInt16], BoundingBox)) -> CPUGlyphDescription {
+/// Generates a CPU-side glyph description from a geometry-producing closure.
+/// Expects equal-length position and normal arrays; otherwise logs and returns a partial result.
+/// UVs are defaulted to (0, 0).
+///
+/// - Parameter buildGeometryFunction: A closure returning positions, normals, indices, and a bounding box.
+/// - Returns: A `CPUGlyphDescription` containing packed vertices and index data.
+func generateGlyphDescription(_ buildGeometryFunction : ()-> ([SIMD3<Float>], [SIMD3<Float>], [UInt16], BoundingBox)) -> CPUGlyphDescription {
     
-    let (pos, nors, index, bb) = f();
+    let (positions, normals, indices, boundingBox) = buildGeometryFunction();
     
-    let verts = zip(pos, nors).map { (p : SIMD3<Float> , n : SIMD3<Float>) in
-        ParticleVertex(position: MTLPackedFloat3Make(p.x, p.y, p.z), normal: MTLPackedFloat3Make(n.x, n.y, n.z), uv: (0, 0))
+    guard positions.count == normals.count else {
+        print("Warning: Mismatched position (\(positions.count)) and normal (\(normals.count)) array lengths.")
+        return .init(vertex: [], index: [], bounding_box: .init())
     }
     
-    return CPUGlyphDescription(vertex: verts, index: index, bounding_box: bb)
+    let verts = zip(positions, normals).map { (p : SIMD3<Float> , n : SIMD3<Float>) in
+        ParticleVertex(
+            position: MTLPackedFloat3Make(p.x, p.y, p.z),
+            normal: MTLPackedFloat3Make(n.x, n.y, n.z),
+            uv: (0, 0)
+        )
+    }
+    
+    return CPUGlyphDescription(vertex: verts, index: indices, bounding_box: boundingBox)
 }
 
-
+/// Convert a geometry patch into a CPU-side glyph descriptor.
+/// - Parameter patch: The patch to convert
+/// - Returns: A new CPU glyph
 @MainActor
-func patch_to_glyph(_ p : GeomPatch?,
-                    world: NoodlesWorld) -> CPUGlyphDescription? {
+func patchToGlyph(_ patch : GeomPatch?,
+                 world: NoodlesWorld) -> CPUGlyphDescription? {
     
-    guard let patch = p else {
+    guard let patch else {
+        default_log.error( "No patch provided.")
         return nil
     }
     
-    let blank_vertex : ParticleVertex = .init(
+    let blankVertex : ParticleVertex = .init(
         position: MTLPackedFloat3Make(0, 0, 0),
         normal: MTLPackedFloat3Make(0, 0, 1),
         uv: (0, 0)
     )
     
-    var verts: [ParticleVertex] = .init(repeating: blank_vertex, count: Int(patch.vertex_count))
+    var verts: [ParticleVertex] = .init(repeating: blankVertex, count: Int(patch.vertex_count))
     
     var bounding = BoundingBox()
     
     for attribute in patch.attributes {
-        let buffer_view = world.buffer_view_list.get(attribute.view)!
-        let actual_stride = max(attribute.stride, format_to_stride(format_str: attribute.format))
+        guard let buffer_view = world.buffer_view_list.get(attribute.view) else {
+            default_log.error("Missing buffer view for attribute \(attribute.semantic)")
+            return nil
+        };
+       
+        guard let format_stride = formatToStride(format: attribute.format) else {
+            default_log.error("Unknown format for attribute \(attribute.semantic)")
+            return nil
+        }
+        
+        let actual_stride = max(attribute.stride, format_stride)
         
         guard let slice = buffer_view.get_slice(offset: attribute.offset) else {
-            print("Unable to get glyph data from slice!")
+            default_log.error("Bad slice for attribute \(attribute.semantic)")
             return nil
         }
         
         switch attribute.semantic {
         case "POSITION":
-            let pos = realize_vec3(slice, .V3, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
-            for p_i in 0 ..< pos.count {
-                let p = pos[p_i]
+            let positions = realize_vec3(slice, .V3, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
+            for p_i in 0 ..< min(positions.count, verts.count) {
+                let p = positions[p_i]
                 verts[p_i].position = MTLPackedFloat3Make(p.x, p.y, p.z)
                 bounding = bounding.union(p)
             }
         case "NORMAL":
-            let nors = realize_vec3(slice, .V3, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
-            for p_i in 0 ..< nors.count {
-                let n = nors[p_i]
+            let normals = realize_vec3(slice, .V3, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
+            for p_i in 0 ..< min(normals.count, verts.count) {
+                let n = normals[p_i]
                 verts[p_i].normal = MTLPackedFloat3Make(n.x, n.y, n.z)
             }
         case "TEXTURE":
             switch attribute.format {
             case "VEC2":
-                let ts = realize_tex_vec2(slice, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
-                for p_i in 0 ..< ts.count {
-                    let n = ts[p_i]
+                let textureCoords = realize_tex_vec2(slice, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
+                for p_i in 0 ..< min(textureCoords.count, verts.count) {
+                    let n = textureCoords[p_i]
                     verts[p_i].uv = (n.x, n.y)
                 }
             case "U16VEC2":
-                let ts = realize_tex_u16vec2(slice, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
-                for p_i in 0 ..< ts.count {
-                    let n = SIMD2<Float>(ts[p_i]) / Float(UInt16.max)
+                let textureCoords = realize_tex_u16vec2(slice, vcount: Int(patch.vertex_count), stride: Int(actual_stride))
+                for p_i in 0 ..< min(textureCoords.count, verts.count) {
+                    let n = SIMD2<Float>(textureCoords[p_i]) / Float(UInt16.max)
                     verts[p_i].uv = (n.x, n.y)
                 }
             default:
+                default_log.warning("Unsupported texture format: \(attribute.format)")
                 continue
             }
         default:
+            default_log.warning("Unsupported semantic: \(attribute.semantic)")
             continue
         }
     }
 
     
     guard let index_info = patch.indices else {
+        default_log.warning("Missing index info")
         return nil
     }
     
-    let index_buff_view = world.buffer_view_list.get(index_info.view)!
+    guard let index_buff_view = world.buffer_view_list.get(index_info.view) else {
+        default_log.warning("Missing index buffer view")
+        return nil
+    }
+    
     guard let index_bytes = index_buff_view.get_slice(offset: index_info.offset) else {
-        print("Unable to get index bytes for glyph!")
+        default_log.warning("Missing index buffer data")
         return nil
     }
     
-    let index = realize_index_u16(index_bytes, index_info)
+    let index = realizeIndex16(index_bytes, index_info)
     
     return CPUGlyphDescription(vertex: verts, index: index, bounding_box: bounding)
 }
 
-func realize_index_u16(_ bytes: Data, _ idx: GeomIndex) -> [UInt16] {
-    if idx.stride != 0 {
-        fatalError("Unable to handle strided index buffers")
+/// Realizes (normalizes) an index buffer from raw bytes, converting to UInt16 format.
+/// Supports "U8", "U16", and "U32" input formats. Strided buffers are not supported.
+/// - Parameters:
+///   - bytes: Raw index data buffer.
+///   - indexInfo: Index format metadata.
+/// - Returns: An array of UInt16 indices.
+func realizeIndex16(_ bytes: Data, _ indexInfo: GeomIndex) -> [UInt16] {
+    guard indexInfo.stride <= 0 else {
+        default_log.error("Unable to handle strided index buffers")
+        return []
     }
     
     
     return bytes.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) -> [UInt16] in
-        
-        switch idx.format {
+        switch indexInfo.format {
         case "U8":
             let arr = pointer.bindMemory(to: UInt8.self)
             return Array<UInt8>(arr).map { UInt16($0) }
@@ -140,67 +183,48 @@ func realize_index_u16(_ bytes: Data, _ idx: GeomIndex) -> [UInt16] {
 
         case "U32":
             let arr = pointer.bindMemory(to: UInt32.self)
-            return Array<UInt32>(arr).map { UInt16($0) }
+            return Array<UInt32>(arr).map { UInt16(clamping: $0) }
             
         default:
-            fatalError("unknown index format")
+            default_log.error("Unknown index format '\(indexInfo.format)'")
+            return []
         }
     }
 }
 
-func make_model_entity(scale : Float = 1.0, _ f : ()-> ([SIMD3<Float>], [SIMD3<Float>], [UInt16], BoundingBox)) -> ModelEntity {
-    
-    let (pos, nors, index, _) = f();
-    
-    let positions = pos.map {
-        p in
-        p * scale
-    }
-    
-    let indicies = index.map { p in
-        UInt32(p)
-    };
-    
-    var description = MeshDescriptor()
-    description.positions = MeshBuffers.Positions(positions)
-    description.normals = MeshBuffers.Normals(nors)
-    description.primitives = .triangles(indicies)
-    
-    var tri_mat = PhysicallyBasedMaterial()
-    tri_mat.baseColor = PhysicallyBasedMaterial.BaseColor.init(tint: .opaqueSeparator)
-    tri_mat.clearcoat = PhysicallyBasedMaterial.Clearcoat(floatLiteral: 1.0)
-    tri_mat.roughness = PhysicallyBasedMaterial.Roughness(floatLiteral: 0.0)
-    tri_mat.metallic  = PhysicallyBasedMaterial.Metallic(floatLiteral: 1.0)
-    
-    return ModelEntity(mesh: try! .generate(from: [description]), materials: [tri_mat])
-}
-
-private func determine_low_level_semantic(attribute: GeomAttrib) -> LowLevelMesh.VertexSemantic? {
+/// Maps a NOODLES geometry attribute to a `LowLevelMesh.VertexSemantic`.
+/// Supports position, normal, tangent, and texture channels (uv0–uv4).
+/// - Parameter attribute: Geometry attribute to interpret.
+/// - Returns: The matching semantic, or `nil` if unsupported.
+private func determineLowLevelSemantic(attribute: GeomAttrib) -> LowLevelMesh.VertexSemantic? {
     switch attribute.semantic {
     case "POSITION":
-        return LowLevelMesh.VertexSemantic.position;
+        return .position
     case "NORMAL":
-        return LowLevelMesh.VertexSemantic.normal;
+        return .normal
     case "TEXTURE":
-        let lookup = [
-            LowLevelMesh.VertexSemantic.uv0,
-            LowLevelMesh.VertexSemantic.uv1,
-            LowLevelMesh.VertexSemantic.uv2,
-            LowLevelMesh.VertexSemantic.uv3,
-            LowLevelMesh.VertexSemantic.uv4,
-        ]
-        return lookup[Int(attribute.channel)]
+        let semanticLookup : [LowLevelMesh.VertexSemantic] = [.uv0, .uv1, .uv2, .uv3, .uv4]
+        let channel = Int(attribute.channel)
+        if channel < semanticLookup.count {
+            return semanticLookup[channel]
+        } else {
+            default_log.error("Invalid texture channel \(channel)")
+            return nil
+        }
     case "TANGENT":
-        return LowLevelMesh.VertexSemantic.tangent
+        return .tangent
     default:
+        default_log.error("Unknown semantic '\(attribute.semantic)'")
         return nil
     }
     
 }
 
-private func determine_low_level_format(attribute: GeomAttrib) -> MTLVertexFormat? {
-    // only looking for valid formats for each type
-    
+/// Maps a NOODLES format string to a Metal-compatible vertex format.
+/// Only known combinations are supported.
+/// - Parameter attribute: Geometry attribute with semantic and format.
+/// - Returns: The corresponding `MTLVertexFormat`, or `nil` if unsupported.
+private func determineLowLevelFormat(attribute: GeomAttrib) -> MTLVertexFormat? {
     switch attribute.semantic {
     case "POSITION", "NORMAL", "TANGENT":
         if attribute.format == "VEC3" {
@@ -213,38 +237,48 @@ private func determine_low_level_format(attribute: GeomAttrib) -> MTLVertexForma
         case "U16VEC2":
             return .ushort2Normalized
         default:
+            default_log.error("Unsupported texture format '\(attribute.format)'")
             return nil
         }
     default:
+        default_log.error("Unknown semantic '\(attribute.semantic)")
         return nil
     }
+    default_log.error("No matching format for semantic '\(attribute.semantic)' with format '\(attribute.format)'")
     return nil
 }
 
-func bounding_box<T: Collection>(of points: T, position_extractor: (T.Element) -> SIMD3<Float>) -> BoundingBox? {
-    guard let first_point = points.first else {
-        return nil
-    }
-    
-    let extract_first_point = position_extractor(first_point)
-    
-    var min_point = extract_first_point
-    var max_point = extract_first_point
-    
-    for element in points {
-        let point = position_extractor(element)
-        min_point = min(min_point, point)
-        max_point = max(max_point, point)
-    }
-    
-    return BoundingBox(min: min_point, max: max_point)
-}
+//func calculateBoundingBox<T: Collection>(of points: T, position_extractor: (T.Element) -> SIMD3<Float>) -> BoundingBox? {
+//    guard let first_point = points.first else {
+//        return nil
+//    }
+//    
+//    let extract_first_point = position_extractor(first_point)
+//    
+//    var min_point = extract_first_point
+//    var max_point = extract_first_point
+//    
+//    for element in points {
+//        let point = position_extractor(element)
+//        min_point = min(min_point, point)
+//        max_point = max(max_point, point)
+//    }
+//    
+//    return BoundingBox(min: min_point, max: max_point)
+//}
 
+/// Determines the bounding box of a geometry attribute from buffer data or min/max metadata.
+/// - Parameters:
+///   - attribute: Geometry attribute containing position data.
+///   - vertexCount: Number of vertices expected in the buffer.
+///   - world: A `NoodlesWorld` context to retrieve buffer data from.
+/// - Returns: The computed or declared bounding box.
 @MainActor
-func determine_bounding_box(attribute: GeomAttrib,
-                            vertex_count: Int,
-                            world: NoodlesWorld) -> BoundingBox {
+private func determineBoundingBox(attribute: GeomAttrib,
+                                  vertex_count: Int,
+                                  world: NoodlesWorld) -> BoundingBox {
     
+    // Prefer bounding box if it's already embedded in attribute
     if attribute.maximum_value.count > 2 && attribute.minimum_value.count > 2 {
         let min_bb = SIMD3<Float>(
             x: attribute.minimum_value[0],
@@ -261,10 +295,13 @@ func determine_bounding_box(attribute: GeomAttrib,
         return BoundingBox(min: min_bb, max: max_bb)
     }
     
-    let buffer_view = world.buffer_view_list.get(attribute.view)!
+    guard let buffer_view = world.buffer_view_list.get(attribute.view) else {
+        default_log.error("Failed to find buffer view for attribute")
+        return BoundingBox()
+    }
     
     guard let data = buffer_view.get_slice(offset: attribute.offset) else {
-        print("Unable to get data to determine bounding box, this is bad!")
+        default_log.error("Failed to find buffer data for attribute")
         return BoundingBox()
     }
     
@@ -278,21 +315,25 @@ func determine_bounding_box(attribute: GeomAttrib,
         for p_i in 0 ..< vertex_count {
             let delta = Int(actual_stride) * p_i
             
-            let l_bb = SIMD3<Float>(
+            let point = SIMD3<Float>(
                 x: ptr.loadUnaligned(fromByteOffset: delta, as: Float32.self),
                 y: ptr.loadUnaligned(fromByteOffset: delta + 4, as: Float32.self),
                 z: ptr.loadUnaligned(fromByteOffset: delta + 8, as: Float32.self)
             )
             
-            min_bb = min(min_bb, l_bb)
-            max_bb = max(max_bb, l_bb)
+            min_bb = min(min_bb, point)
+            max_bb = max(max_bb, point)
         }
     }
     
     return BoundingBox(min: min_bb, max: max_bb)
 }
 
-private func determine_index_type(patch: GeomPatch) -> MTLPrimitiveType? {
+/// Converts a patch's primitive type string into a Metal topology type.
+/// Supports points, lines, line strips, triangles, and triangle strips.
+/// - Parameter patch: The patch to inspect.
+/// - Returns: The Metal primitive type, or `nil` if unsupported.
+private func determineIndexType(patch: GeomPatch) -> MTLPrimitiveType? {
     switch patch.type {
     case "POINTS":
         return .point
@@ -305,12 +346,16 @@ private func determine_index_type(patch: GeomPatch) -> MTLPrimitiveType? {
     case "TRIANGLE_STRIP":
         return .triangleStrip
     default:
+        default_log.error("Unknown primitive type '\(patch.type)'")
         return nil
     }
 }
 
-private func format_to_stride(format_str: String) -> Int64 {
-    switch format_str {
+/// Returns the byte stride for a given format string (e.g., "VEC3", "U16").
+/// - Parameter format: Format string to evaluate.
+/// - Returns: Byte stride for the format, or `1` as a fallback.
+private func formatToStride(format: String) -> Int64? {
+    switch format {
     case "U8": return 1
     case "U16": return 2
     case "U32": return 4
@@ -326,14 +371,16 @@ private func format_to_stride(format_str: String) -> Int64 {
     case "MAT3": return 3 * 3 * 4
     case "MAT4": return 4 * 4 * 4
     default:
-        return 1
+        default_log.error("Unknown format '\(format)'")
+        return nil
     }
 }
 
 @MainActor
-func patch_to_low_level_mesh(patch: GeomPatch,
-                             world: NoodlesWorld) -> LowLevelMesh? {
-    //print("Patch to low-level mesh")
+func patchToLowLevelMesh(patch: GeomPatch,
+                         world: NoodlesWorld) -> LowLevelMesh? {
+    // MARK: - Build vertex attributes and layout mappings
+    
     // these have format, layout index, offset from start of vertex data, and semantic
     var ll_attribs = [LowLevelMesh.Attribute]()
     
@@ -342,86 +389,98 @@ func patch_to_low_level_mesh(patch: GeomPatch,
     
     // we need to pack all buffer references into the layout list
     
-    struct LayoutPack : Hashable {
+    struct LayoutKey : Hashable {
         let view_id : NooID
         let buffer_stride : Int64
     }
     
-    var layout_mapping = [LayoutPack : Int]();
+    var layout_mapping = [LayoutKey : Int]();
     
-    var position_bb: BoundingBox?;
+    var position_bounding_box: BoundingBox?;
     
     for attribute in patch.attributes {
-        //let buffer_view = world.buffer_view_list.get(attribute.view)!
-        let actual_stride = max(attribute.stride, format_to_stride(format_str: attribute.format))
-        //print("attribute");
-        //dump(attribute)
-        //dump(actual_stride)
-        //dump(buffer_view)
-        //let buffer = info.buffer_cache[buffer_view.source_buffer.slot]!
+        guard let format_stride = formatToStride(format: attribute.format) else {
+            default_log.warning("Unknown format \(attribute.format), unable to build mesh")
+            return nil
+        }
+        let actual_stride = max(attribute.stride, format_stride)
         
         // - attribute.view    this is essentially which buffer we are using
         // - attribute.offset  this is the offset to the buffer
         // - attribute.stride  this is the offset between attributes info
         
         //
-        let key = LayoutPack(view_id: attribute.view,
-                             buffer_stride: actual_stride);
+        let key = LayoutKey(
+            view_id: attribute.view,
+            buffer_stride: actual_stride
+        );
         
-        guard let ll_semantic = determine_low_level_semantic(attribute: attribute) else {
+        guard let ll_semantic = determineLowLevelSemantic(attribute: attribute) else {
+            default_log.warning("Unknown semantic \(attribute.semantic)")
             continue;
         }
         
-        guard let ll_format = determine_low_level_format(attribute: attribute) else {
+        guard let ll_format = determineLowLevelFormat(attribute: attribute) else {
+            default_log.warning("Unsupported format \(attribute.format) for semantic \(String(describing: ll_semantic))")
             continue;
         }
         
         if ll_semantic == .position {
-            position_bb = determine_bounding_box(attribute: attribute, vertex_count: Int(patch.vertex_count), world: world)
+            position_bounding_box = determineBoundingBox(attribute: attribute, vertex_count: Int(patch.vertex_count), world: world)
         }
         
-        print("SEMANTICS \(ll_semantic) \(ll_format)")
+        //print("SEMANTICS \(ll_semantic) \(ll_format)")
         
+        // Allocate layout index if we haven't already
         let layout_index = {
             if let layout_index = layout_mapping[key] {
                 return layout_index
             } else {
                 let layout_index = ll_layouts.count
                 layout_mapping[key] = layout_index
-                ll_layouts.append(LowLevelMesh.Layout(bufferIndex: layout_index,  // is this correct?
-                                                      bufferOffset: 0,
-                                                      bufferStride: Int(key.buffer_stride)))
+                ll_layouts.append(
+                    LowLevelMesh.Layout(
+                        bufferIndex: layout_index,  // is this correct?
+                        bufferOffset: 0,
+                        bufferStride: Int(key.buffer_stride))
+                )
                 //print("ADDING LAYOUT \(key) at index \(layout_index)")
                 return layout_index
             }
         }()
         
-        ll_attribs.append(LowLevelMesh.Attribute(semantic: ll_semantic, format: ll_format, layoutIndex: layout_index, offset: Int(attribute.offset)))
+        ll_attribs.append(
+            LowLevelMesh.Attribute(
+                semantic: ll_semantic,
+                format: ll_format,
+                layoutIndex: layout_index,
+                offset: Int(attribute.offset)
+            )
+        )
         
     }
     
     // if we dont have a bounding box, we never had a position attrib
     
-    guard let resolved_bb = position_bb else {
-        print("Missing position semantic!")
+    guard let resolved_bounding_box = position_bounding_box else {
+        default_log.error("Missing position semantic or failed to compute bounding box")
         return nil
     }
     
-    ll_layouts.reserveCapacity(layout_mapping.count)
+    // MARK: - Configure index format and capacity
     
-    let format = patch.indices?.format ?? "U32"
+    let index_format = patch.indices?.format ?? "U32"
     var index_type : MTLIndexType
     
-    switch format {
-    case "U16":
-        index_type = .uint16
-    case "U32":
-        index_type = .uint32
+    switch index_format {
+    case "U16": index_type = .uint16
+    case "U32": index_type = .uint32
     default:
-        print("Unsupported index type")
+        default_log.error("Unsupported index format '\(index_format)'")
         return nil
     }
     
+    // MARK: - Create mesh descriptor
     
     let meshDescriptor = LowLevelMesh.Descriptor(vertexCapacity: Int(patch.vertex_count),
                                                  vertexAttributes: ll_attribs,
@@ -429,60 +488,77 @@ func patch_to_low_level_mesh(patch: GeomPatch,
                                                  indexCapacity: Int(patch.indices?.count ?? 0),
                                                  indexType: index_type)
     
-    let lowLevelMesh : LowLevelMesh;
+    // MARK: - Instantiate low-level mesh
+    
+    let lowLevelMesh : LowLevelMesh
     
     do {
-        // this might need to be on the main thread?
         lowLevelMesh = try LowLevelMesh(descriptor: meshDescriptor)
     } catch {
-        print("Explosion in mesh generation \(error)")
+        default_log.error("Failed to create mesh - \(error)")
         return nil
     }
     
-    dump(lowLevelMesh)
+    //dump(lowLevelMesh)
     
-    // now execute uploads
+    // MARK: - Upload vertex buffers
     
-    for (k,v) in layout_mapping {
-        let buffer_view = world.buffer_view_list.get(k.view_id)!
-        
-        guard let slice = buffer_view.get_slice(offset: 0) else {
-            print("Unable to get mesh data from buffer view!")
+    for (key, layout_index) in layout_mapping {
+        guard let buffer_view = world.buffer_view_list.get(key.view_id) else {
+            default_log.error("Missing buffer view for layout")
             return nil
         }
         
-        lowLevelMesh.replaceUnsafeMutableBytes(bufferIndex: v, { ptr in
-            print("Uploading mesh data \(ptr.count)")
+        guard let slice = buffer_view.get_slice(offset: 0) else {
+            default_log.error("Missing vertex buffer data")
+            return nil
+        }
+        
+        lowLevelMesh.replaceUnsafeMutableBytes(bufferIndex: layout_index, { ptr in
+            //print("Uploading mesh data \(ptr.count)")
             let res = slice.copyBytes(to: ptr)
-            print("Uploaded \(res)")
+            //print("Uploaded \(res)")
+            
+            default_log.info("Uploading \(res) bytes to vertex buffer \(layout_index)")
         })
     }
     
+    // MARK: - Upload index buffer and finalize
+    
     if let index_info = patch.indices {
-        dump(index_info)
+        //dump(index_info)
         
-        let buffer_view = world.buffer_view_list.get(index_info.view)!
+        guard let buffer_view = world.buffer_view_list.get(index_info.view) else {
+            default_log.error("Missing buffer view for index")
+            return nil
+        }
         
         guard let bytes = buffer_view.get_slice(offset: index_info.offset) else {
-            print("Unable to get mesh index info from buffer view!")
+            default_log.error("Missing buffer data for index")
             return nil
         }
         
         lowLevelMesh.replaceUnsafeMutableIndices { ptr in
-            print("Uploading index data \(ptr.count)")
+            //print("Uploading index data \(ptr.count)")
             let res = bytes.copyBytes(to: ptr)
-            print("Uploaded \(res)")
+            default_log.info("Uploading \(res) bytes to index buffer")
         }
         
-        guard let index_type = determine_index_type(patch: patch) else {
-            print("Unable to determine index type!")
+        guard let index_type = determineIndexType(patch: patch) else {
+            default_log.error("Failed to determine primitive type")
             return nil
         }
         
-        print("Installing index part \(index_type) bb: \(resolved_bb)")
+        //print("Installing index part \(index_type) bb: \(resolved_bb)")
         
         lowLevelMesh.parts.replaceAll([
-            .init(indexOffset: 0, indexCount: Int(index_info.count), topology: index_type, materialIndex: 0, bounds: resolved_bb)
+            .init(
+                indexOffset: 0,
+                indexCount: Int(index_info.count),
+                topology: index_type,
+                materialIndex: 0,
+                bounds: resolved_bounding_box
+            )
         ])
     }
     

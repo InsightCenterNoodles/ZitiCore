@@ -318,7 +318,7 @@ public struct GestureComponent: Component, Codable {
         guard let e = EntityGestureState.shared.targetedEntity else {
             return
         }
-        
+        default_log.info(">>> final transform change check")
         e.components[GestureSupportComponent.self]?.complete(e: e)
     }
 }
@@ -400,6 +400,7 @@ struct GestureSupportComponent : Component {
         guard let tf = pending_transform else { return }
         
         //print("Setting transform")
+        default_log.info(">>> final transform update")
         e.move(to: tf, relativeTo: e.parent, duration: 0.1)
     }
 }

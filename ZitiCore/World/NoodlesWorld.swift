@@ -7,12 +7,14 @@
 
 import Foundation
 import SwiftUI
-import OSLog
 import RealityKit
 import SwiftCBOR
 import Combine
 
 // MARK: Method
+
+/// Represents a remotely-defined method callable within the NoodlesWorld runtime.
+/// Registered via `MsgMethodCreate` and looked up by name for invocation.
 class NooMethod : NoodlesComponent {
     var info: MsgMethodCreate
     
@@ -31,6 +33,8 @@ class NooMethod : NoodlesComponent {
 
 // MARK: Buffer
 
+/// Represents a raw data buffer, typically containing geometry, image, or simulation data.
+/// Buffers are referenced by views (`NooBufferView`) for slicing and interpretation.
 class NooBuffer : NoodlesComponent {
     var info: MsgBufferCreate
     
@@ -50,10 +54,12 @@ class NooBuffer : NoodlesComponent {
 
 // MARK: BufferView
 
+/// Provides a view into a `NooBuffer`, allowing sliced access to portions of binary data.
+/// Used for interpreting structured content such as vertex attributes or image bytes.
 class NooBufferView : NoodlesComponent {
     var info: MsgBufferViewCreate
     
-    var buffer: NooBuffer!
+    var buffer: NooBuffer?
     
     init(msg: MsgBufferViewCreate) {
         info = msg
@@ -61,14 +67,16 @@ class NooBufferView : NoodlesComponent {
     
     func create(world: NoodlesWorld) {
         print("Created buffer view: \(info.id) -> \(info.source_buffer)")
-        buffer = world.buffer_list.get(info.source_buffer)!;
+        buffer = world.buffer_list.get(info.source_buffer);
     }
     
     func get_slice(offset: Int64) -> Data? {
+        guard let buffer else { return nil }
         return info.get_slice(data: buffer.info.bytes, view_offset: offset)
     }
     
     func get_slice(offset: Int64, length: Int64) -> Data? {
+        guard let buffer else { return nil }
         return info.get_slice(data: buffer.info.bytes, view_offset: offset, override_length: length)
     }
     
@@ -79,7 +87,7 @@ class NooBufferView : NoodlesComponent {
 
 // MARK: Texture
 
-func generate_placeholder_image(width: Int, height: Int, color: UIColor) -> CGImage {
+func generate_placeholder_image(width: Int, height: Int, color: UIColor) -> CGImage? {
     let context = CGContext(data: nil,
                                   width: width, height: height,
                                   bitsPerComponent: 8,
@@ -93,9 +101,11 @@ func generate_placeholder_image(width: Int, height: Int, color: UIColor) -> CGIm
 
     context.restoreGState()
 
-    return context.makeImage()!
+    return context.makeImage()
 }
 
+/// Represents a GPU texture resource sourced from an image.
+/// Lazily resolves and uploads texture data on demand, including fallback placeholder logic.
 class NooTexture : NoodlesComponent {
     var info : MsgTextureCreate
     
@@ -103,7 +113,7 @@ class NooTexture : NoodlesComponent {
     
     private var resources : [TextureResource.Semantic : TextureResource] = [:]
     
-    static let placeholder = generate_placeholder_image(width: 32, height: 32, color: .gray)
+    static let placeholder = generate_placeholder_image(width: 32, height: 32, color: .gray)!
     
     init(msg: MsgTextureCreate) {
         info = msg
@@ -119,20 +129,20 @@ class NooTexture : NoodlesComponent {
             return resource
         }
         
-        guard let img = noo_world.image_list.get(info.image_id) else {
-            default_log.error("Image is missing!")
+        guard let noo_image = noo_world.image_list.get(info.image_id) else {
+            default_log.error("NooImage is missing!")
             return nil
         }
         
-        guard let texture_image = img.image else {
-            default_log.error("Image could not be generated!")
+        guard let image = noo_image.image else {
+            default_log.error("NooImage has no image to use!")
             return nil
         }
         
         // TODO: Update spec to help inform APIs about texture use
         do {
-            // create a placeholder
             
+            // create a placeholder
             let resource = try TextureResource(image: NooTexture.placeholder, options: .init(semantic: semantic));
             
             resources[semantic] = resource
@@ -140,7 +150,7 @@ class NooTexture : NoodlesComponent {
             // now kick off installation of the REAL texture
             
             Task {
-                try await resource.replace(using: texture_image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
+                try await resource.replace(using: image, options: .init(semantic: semantic, mipmapsMode: .allocateAndGenerateAll))
             }
             
             return resource
@@ -156,6 +166,8 @@ class NooTexture : NoodlesComponent {
 
 // MARK: Sampler
 
+/// Represents a sampler object used for texture filtering configuration.
+/// Currently minimally implemented—can be extended with wrap/filter state.
 class NooSampler : NoodlesComponent {
     var info : MsgSamplerCreate
     
@@ -185,6 +197,8 @@ private func data_to_cgimage(data: Data) -> CGImage? {
     return CGImageSourceCreateImageAtIndex(image_source, 0, options as CFDictionary)
 }
 
+/// Stores an image and its associated metadata. Converts raw buffer data into `CGImage` at runtime.
+/// Supports caching, lazy loading, and diagnostic logging for missing or invalid image sources.
 class NooImage : NoodlesComponent {
     var info : MsgImageCreate
     
@@ -195,33 +209,30 @@ class NooImage : NoodlesComponent {
     }
     
     func create(world: NoodlesWorld) {
-        if let src_bytes = get_slice(world: world) {
-            image = data_to_cgimage(data: src_bytes)
+        guard let src_bytes = get_slice(world: world) else {
+            default_log.error("Unable to get byte slice for image data \(String(describing: self.info.id))");
+            return
+        }
+        
+        if let new_image = data_to_cgimage(data: src_bytes) {
+            image = new_image
             
-            if let img = image {
-                print("Creating image: \(img.width)x\(img.height)");
-            } else {
-                print("Unable to create image!");
-            }
-            
-            
+            default_log.info("Creating image: \(new_image.width)x\(new_image.height)");
         }
     }
     
     func get_slice(world: NoodlesWorld) -> Data? {
         if let d = info.saved_bytes {
-            print("Cached results for image")
             return d
         }
         
         if let v_id = info.buffer_source {
             if let v = world.buffer_view_list.get(v_id) {
-                print("Getting image slice")
                 return v.get_slice(offset: 0)
             }
         }
         
-        print("Warning! Unable to get a valid slice for an image!")
+        default_log.warning("Unable to get a valid slice for an image!")
         
         return nil
     }
@@ -269,6 +280,8 @@ private func resolve_texture(world: NoodlesWorld, semantic: TextureResource.Sema
     return ret;
 }
 
+/// Wraps a RealityKit `Material` and builds a physically-based material from provided info.
+/// Supports textures, tinting, roughness/metallic properties, and alpha blending.
 class NooMaterial : NoodlesComponent {
     var info: MsgMaterialCreate
     
@@ -326,6 +339,8 @@ class NooMaterial : NoodlesComponent {
 
 // MARK: Geometry
 
+/// Represents GPU geometry composed of one or more patches (`GeomPatch`) converted to mesh resources.
+/// Caches mesh resources and bounding box computations for reuse during rendering.
 @MainActor
 class NooGeometry : NoodlesComponent {
     var info: MsgGeometryCreate
@@ -390,7 +405,10 @@ class NooGeometry : NoodlesComponent {
     }
     
     func add_patch(_ patch: GeomPatch, _ world: NoodlesWorld) {
-        let ll = patch_to_low_level_mesh(patch: patch, world: world)!;
+        guard let ll = patchToLowLevelMesh(patch: patch, world: world) else {
+            default_log.error("Unable to build patch for geometry \(String(describing: self.info.id))")
+            return
+        }
         
         self.descriptors.append(ll)
           
@@ -413,6 +431,8 @@ class NEntity : Entity, HasCollision {
 }
 
 @MainActor
+/// Represents interaction capabilities available for an entity, inferred from attached methods.
+/// Used to determine which gesture controls should be installed.
 struct SpecialAbilities {
     var can_move = false
     var can_scale = false
@@ -443,11 +463,15 @@ struct SpecialAbilities {
     }
 }
 
+/// Helper struct used to prepare rendering data for a `NooEntity`.
+/// Caches references to the associated geometry and optional instance buffer view.
 struct NooEntityRenderPrep {
     var geometry: NooGeometry
     var instance_view: NooBufferView?
 }
 
+/// Represents an instanced entity in the scene graph, with optional geometry, methods, and physics.
+/// Handles representation, parenting, gesture controls, and visual components dynamically.
 class NooEntity : NoodlesComponent {
     var last_info: MsgEntityCreate
     
@@ -468,169 +492,213 @@ class NooEntity : NoodlesComponent {
         entity = NEntity()
     }
     
+    /// Shared logic for both creating and updating a `NooEntity`.
+    /// Handles parenting, transformation, rendering, physics, gestures, and visibility.
+    /// - Parameters:
+    ///   - world: The current `NoodlesWorld` context.
+    ///   - msg: The entity creation or update message to apply.
     @MainActor
     func common(world: NoodlesWorld, msg: MsgEntityCreate) {
-        //dump(msg)
-        
-        if let n = msg.name {
-            entity.name = n
+        applyNameAndParentHierarchy(world, msg)
+        applyTransform(world, msg)
+        updateRenderRepresentation(world, msg)
+        updatePhysics(world, msg)
+        updateMethodsAndGestures(world, msg)
+        updateVisibility(world, msg)
+    }
+    
+    private func applyNameAndParentHierarchy(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        if let name = msg.name {
+            entity.name = name
         }
-        
-        // setting parent?
+
         if let parent = msg.parent {
-            // a set or unset?
-            if parent.is_valid() {
-                if let parent_ent = world.entity_list.get(parent) {
-                    parent_ent.entity.addChild(entity)
-                } else {
-                    print("Unable to find parent. Misbehaving server??")
-                    world.root_entity.addChild(entity)
-                }
+            if parent.is_valid(), let parentEntity = world.entity_list.get(parent) {
+                parentEntity.entity.addChild(entity)
             } else {
+                default_log.warning("Unparenting")
                 world.root_entity.addChild(entity)
             }
         }
-        
-        if let tf = msg.tf {
-            switch tf {
-            case .matrix(let mat):
-                handle_new_tf(world, transform: mat)
-                break;
-            case .qr_code(_):
-                //
-                break;
-            case .geo_coordinates(_):
-                //
-                break;
-            }
-            
-        }
-        
-        if let _ = msg.null_rep {
-            unset_representation(world);
-        } else if let g = msg.rep {
-            //print("adding mesh rep \(entity.name)")
-            // we need to obtain references to stuff in world to make sure we dont get clobbered
-            // while doing work in another task
-            let prep = NooEntityRenderPrep(
-                geometry: world.geometry_list.get(g.mesh)!,
-                instance_view: g.instances.map { world.buffer_view_list.get($0.view)! }
-            )
-            
-            let new_subs = self.build_sub_render_representation(g, prep, world);
-            
-            self.unset_representation(world);
-            
-            for sub in new_subs {
-                self.add_sub(sub)
-            }
-            
-        }
-        
-        if let p = msg.physics {
-            print("Updating physics!")
-            if let q = physics_debug {
-                q.removeFromParent()
-                entity.removeChild(q)
-            }
-            
-            let fp = p.first!
-            
-            let physics = world.physics_list.get(fp)!
-            
-            let advector_state = physics.advector_state!
+    }
+    
+    private func applyTransform(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        guard let tf = msg.tf else { return }
 
-            let physics_context = ParticleContext(
-                advect_multiplier: 10.0,
-                time_delta: 1/60.0,
-                max_lifetime: 10.0,
-                bb_min: float_to_packed(advector_state.bb.min),
-                bb_max: float_to_packed(advector_state.bb.max),
-                vfield_dim: pack_cast(advector_state.velocity.dims),
-                number_particles: UInt32(advector_state.num_particles),
-                spawn_range_start: 0,
-                spawn_range_count: 0,
-                spawn_at: MTLPackedFloat3Make(0.0, 0.0, 0.0),
-                spawn_at_radius: 0.25
-            )
-            
-            let component = make_advection_component(context: physics_context)
-            
-            component.velocity_vector_field.contents().copyMemory(
-                from: advector_state.velocity.array,
-                byteCount: component.velocity_vector_field.length
-            )
-            
-            entity.components.set(component)
-            
-            print("Adding Hack advector physics")
-            
-            let advector_ent = Entity()
-            
-            let resource = try! MeshResource(from: component.glyph_system.low_level_mesh)
-
-            let model_component = ModelComponent(mesh: resource, materials: [PhysicallyBasedMaterial()])
-
-            advector_ent.components.set(model_component)
-            
-            //advector_ent.position = advector_state.bb.center
-            advector_ent.position = .zero
-            
-            advector_ent.components.set(AdvectionSpawnComponent())
-            
-            entity.addChild(advector_ent)
-        }
-        
-        if let mthds = msg.methods_list {
-            methods = mthds.compactMap {
-                world.methods_list.get($0)
-            }
-            
-            
-            abilities = SpecialAbilities(methods)
-            
-            if abilities.can_move || abilities.can_rotate || abilities.can_scale || abilities.can_activate {
-                install_gesture_control(world)
-                
-                if world.set_item_input_cached {
-                    set_input_enabled(enabled: true)
+        switch tf {
+        case .matrix(let mat):
+            if let gesture = entity.gestureComponent {
+                let shared = EntityGestureState.shared
+                if shared.targetedEntity == entity,
+                   shared.isDragging || shared.isRotating || shared.isScaling {
+                    entity.components[GestureSupportComponent.self]?.pending_transform = mat
+                    default_log.debug("Delaying transform update for entity '\(self.entity.name)' due to active gesture")
                 }
-                
             } else {
-                if entity.components.has(GestureComponent.self) {
-                    entity.components.remove(GestureComponent.self);
-                }
-            }
-        }
-        
-        if let visibility = msg.visible {
-            //dump(msg)
-            entity.isEnabled = visibility
-        }
-        
-        if let billboard = msg.billboard {
-            if (billboard) {
-                entity.components.set(BillboardComponent())
-            } else {
-                entity.components.remove(BillboardComponent.self)
-            }
-        }
-        
-        if let occlusion = msg.occlusion {
-            
-            if occlusion {
-                for sub_entity in sub_entities {
-                    print("ADDING OCCLUSION \(entity.name)")
-                    if var model = sub_entity.components[ModelComponent.self] {
-                        print("ADDING OCCLUSION HERE \(model.materials.count)")
-                        model.materials[0] = OcclusionMaterial()
-                    }
-                }
+                entity.move(to: mat, relativeTo: entity.parent, duration: 0.1)
             }
 
+            
+
+        case .qr_code(_), .geo_coordinates(_):
+            // TODO: Support additional transform types
+            default_log.warning("Transform type not implemented for entity '\(self.entity.name)'")
         }
     }
     
+    private func updateRenderRepresentation(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        if msg.null_rep != nil {
+            unset_representation(world)
+            default_log.debug("Entity '\(self.entity.name)' cleared representation")
+            return
+        }
+
+        guard let rep = msg.rep else { return }
+
+        // Resolve geometry and instance view references
+        guard let geometry = world.geometry_list.get(rep.mesh) else {
+            default_log.error("Missing geometry for entity '\(self.entity.name)'")
+            return
+        }
+
+        let instanceView = rep.instances.flatMap { inst in
+            world.buffer_view_list.get(inst.view)
+        }
+
+        let prep = NooEntityRenderPrep(geometry: geometry, instance_view: instanceView)
+
+        // Build sub-entities and install them
+        let newSubs = build_sub_render_representation(rep, prep, world)
+
+        unset_representation(world)
+
+        for sub in newSubs {
+            add_sub(sub)
+        }
+
+        default_log.debug("Entity '\(self.entity.name)' updated render representation with \(newSubs.count) sub-entities")
+    }
+    
+    private func updatePhysics(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        guard let physicsRefs = msg.physics, let firstID = physicsRefs.first else { return }
+
+        // Remove old physics debug visuals if present
+        if let debugEntity = physics_debug {
+            debugEntity.removeFromParent()
+            entity.removeChild(debugEntity)
+            physics_debug = nil
+        }
+
+        guard let physics = world.physics_list.get(firstID),
+              let advector = physics.advector_state else {
+            default_log.warning("Physics or advector state missing for entity '\(self.entity.name)'")
+            return
+        }
+
+        let context = ParticleContext(
+            advect_multiplier: 10.0,
+            time_delta: 1 / 60.0,
+            max_lifetime: 10.0,
+            bb_min: float_to_packed(advector.bb.min),
+            bb_max: float_to_packed(advector.bb.max),
+            vfield_dim: pack_cast(advector.velocity.dims),
+            number_particles: UInt32(advector.num_particles),
+            spawn_range_start: 0,
+            spawn_range_count: 0,
+            spawn_at: MTLPackedFloat3Make(0.0, 0.0, 0.0),
+            spawn_at_radius: 0.25
+        )
+
+        let component = make_advection_component(context: context)
+
+        component.velocity_vector_field.contents().copyMemory(
+            from: advector.velocity.array,
+            byteCount: component.velocity_vector_field.length
+        )
+
+        entity.components.set(component)
+        default_log.info("Advection component added to entity '\(self.entity.name)'")
+
+        // Debug visualization entity
+        let debugEnt = Entity()
+        debugEnt.position = .zero
+
+        let resource = try? MeshResource(from: component.glyph_system.low_level_mesh)
+        if let mesh = resource {
+            let model = ModelComponent(mesh: mesh, materials: [PhysicallyBasedMaterial()])
+            debugEnt.components.set(model)
+            debugEnt.components.set(AdvectionSpawnComponent())
+            entity.addChild(debugEnt)
+            physics_debug = debugEnt
+            default_log.debug("Added advection debug visuals to entity '\(self.entity.name)'")
+        }
+    }
+
+    private func updateMethodsAndGestures(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        guard let methods_list = msg.methods_list else {
+            // Remove gestures if methods are cleared
+            return
+        }
+
+        let methods = methods_list.compactMap {
+            world.methods_list.get($0)
+        }
+        
+        abilities = SpecialAbilities(methods)
+        
+        if abilities.can_move || abilities.can_rotate || abilities.can_scale || abilities.can_activate {
+            install_gesture_control(world)
+            
+            if world.set_item_input_cached {
+                set_input_enabled(enabled: true)
+            }
+            
+        } else {
+            if entity.components.has(GestureComponent.self) {
+                entity.components.remove(GestureComponent.self);
+            }
+        }
+    }
+    
+    private func updateVisibility(_ world: NoodlesWorld, _ msg: MsgEntityCreate) {
+        // Toggle visibility
+        if let isVisible = msg.visible {
+            entity.isEnabled = isVisible
+            default_log.debug("Entity '\(self.entity.name)' visibility set to \(isVisible)")
+        }
+
+        // Add billboard component
+        if let billboard = msg.billboard {
+            if (billboard) {
+                entity.components.set(BillboardComponent())
+                default_log.debug("Entity '\(self.entity.name)' set to billboard mode")
+            } else {
+                entity.components.remove(BillboardComponent.self)
+            }
+            
+        }
+
+        // Add occlusion component
+        if let occlusion = msg.occlusion {
+            if occlusion {
+                for sub_entity in sub_entities {
+                    if var model = sub_entity.components[ModelComponent.self] {
+                        model.materials[0] = OcclusionMaterial()
+                    }
+                }
+                default_log.debug("Entity '\(self.entity.name)' set to be occluding")
+            }
+            
+        }
+    }
+
+
+    
+    /// Handles a new transform matrix update, accounting for gesture interactions.
+    /// If the entity is currently being manipulated, transformation is deferred.
+    /// - Parameters:
+    ///   - world: The `NoodlesWorld` context.
+    ///   - transform: The new world-space transform matrix to apply.
     func handle_new_tf(_ world: NoodlesWorld, transform: simd_float4x4) {
         // If the user is dragging and a transform update comes in, we can delay it
         // until they are done
@@ -648,17 +716,21 @@ class NooEntity : NoodlesComponent {
         entity.move(to: transform, relativeTo: entity.parent, duration: 0.1)
     }
     
+    /// Installs gesture controls (drag, rotate, scale, tap) based on entity abilities.
+    /// Also adds hover and input target components for interaction.
+    /// - Parameter world: The current `NoodlesWorld` context.
     func install_gesture_control(_ world: NoodlesWorld) {
         print("Installing gesture controls...")
         
         // this gets called AFTER we do a render rep
         // if there is NO render rep, nothing will work
         
-        let gesture = GestureComponent(canDrag: abilities.can_move,
-                                       pivotOnDrag: false,
-                                       canScale: abilities.can_scale,
-                                       canRotate: abilities.can_rotate,
-                                       canTap: abilities.can_activate
+        let gesture = GestureComponent(
+            canDrag: abilities.can_move,
+            pivotOnDrag: false,
+            canScale: abilities.can_scale,
+            canRotate: abilities.can_rotate,
+            canTap: abilities.can_activate
         )
         
         let support = GestureSupportComponent(
@@ -673,27 +745,41 @@ class NooEntity : NoodlesComponent {
         entity.components.set(InputTargetComponent())
     }
     
+    /// Called when the entity is first created from a message.
+    /// Adds it to the scene, applies naming, and runs shared creation logic.
+    /// - Parameter world: The current `NoodlesWorld` context.
     @MainActor
     func create(world: NoodlesWorld) {
         world.root_entity.addChild(entity)
         
         //print("Creating \(last_info.id)")
         
-        entity.name = "noo_\(last_info.id)"
+        entity.name = "noo_\(String(describing: last_info.id))"
 
         common(world: world, msg: last_info)
     }
     
+    /// Clears the visual representation (geometry/instances) from the entity.
+    /// - Parameter world: The current `NoodlesWorld` context.
     func unset_representation(_ world: NoodlesWorld) {
         clear_subs(world)
     }
     
+    /// Adds a sub-entity as a child of this entity and tracks it for cleanup.
+    /// - Parameter ent: The sub-entity to attach.
     func add_sub(_ ent: Entity) {
         sub_entities.append(ent)
         
         entity.addChild(ent)
     }
     
+    /// Builds an instanced rendering representation from buffer data and patch geometry.
+    /// Uploads instance transforms to GPU, computes bounding box, and spawns the model entity.
+    /// - Parameters:
+    ///   - src: Instance source containing optional bounds.
+    ///   - prep: Precomputed geometry + instance view references.
+    ///   - world: The current `NoodlesWorld` context.
+    /// - Returns: An array of entities and their computed bounding box, or `nil` on failure.
     @MainActor
     func build_instance_representation(_ src: InstanceSource,
                                        _ prep: NooEntityRenderPrep,
@@ -701,12 +787,12 @@ class NooEntity : NoodlesComponent {
     ) -> ([Entity], BoundingBox)? {
         
         guard let v = prep.instance_view else {
-            print("Warning: missing instance view")
+            default_log.warning("missing instance buffer view")
             return nil
         }
         
         guard let instance_data = v.get_slice(offset: 0) else {
-            print("Unable to get instance data")
+            default_log.warning("missing instance buffer data")
             return nil
         }
         
@@ -727,7 +813,7 @@ class NooEntity : NoodlesComponent {
             instance_buffer.contents().copyMemory(from: pointer.baseAddress!, byteCount: instances_byte_count)
         }
         
-        guard let glyph = patch_to_glyph(prep.geometry.info.patches.first, world: world) else {
+        guard let glyph = patchToGlyph(prep.geometry.info.patches.first, world: world) else {
             return nil
         }
         
@@ -780,6 +866,14 @@ class NooEntity : NoodlesComponent {
         return ([ent], bounding_box)
     }
     
+    /// Builds one or more sub-entities from geometry and rendering metadata.
+    /// If instancing is present, delegates to `build_instance_representation`. Otherwise,
+    /// creates one sub-entity per mesh/material pair.
+    /// - Parameters:
+    ///   - rep: The render representation message.
+    ///   - prep: Cached geometry + instance view.
+    ///   - world: The current `NoodlesWorld` context.
+    /// - Returns: Array of generated sub-entities.
     @MainActor
     func build_sub_render_representation(_ rep: RenderRep, _ prep: NooEntityRenderPrep, _ world: NoodlesWorld) -> [Entity] {
         var subs = [Entity]();
@@ -809,12 +903,13 @@ class NooEntity : NoodlesComponent {
                 subs.append(new_entity)
             }
         }
-
-        
         
         return subs
     }
     
+    /// Enables or disables interaction input for the entity (e.g., collision + input target).
+    /// Automatically computes collision bounds from sub-entity geometry.
+    /// - Parameter enabled: Whether input should be enabled or not.
     @MainActor
     func set_input_enabled(enabled: Bool) {
         guard var c = entity.components[InputTargetComponent.self] else {
@@ -839,12 +934,18 @@ class NooEntity : NoodlesComponent {
         }
     }
     
+    /// Applies an update message to the entity, re-running shared creation logic with new data.
+    /// - Parameters:
+    ///   - world: The current `NoodlesWorld` context.
+    ///   - update: The message containing updated entity data.
     @MainActor
     func update(world: NoodlesWorld, _ update: MsgEntityCreate) {
         common(world: world, msg: update)
         last_info = update
     }
     
+    /// Detaches and removes all sub-entities from this entity.
+    /// - Parameter world: The current `NoodlesWorld` context.
     private func clear_subs(_ world: NoodlesWorld) {
         //print("Clearing subs!")
         for sub_entity in sub_entities {
@@ -853,6 +954,8 @@ class NooEntity : NoodlesComponent {
         sub_entities.removeAll(keepingCapacity: true)
     }
     
+    /// Completely removes this entity from the scene, detaching from parent and clearing sub-entities.
+    /// - Parameter world: The current `NoodlesWorld` context.
     func destroy(world: NoodlesWorld) {
         clear_subs(world)
         entity.removeFromParent()
@@ -861,6 +964,8 @@ class NooEntity : NoodlesComponent {
     
 }
 
+/// Describes supported vector formats for vertex attributes (e.g., 2D or 3D vectors).
+/// Used when interpreting raw buffer data into structured vertex types.
 enum VAttribFormat {
     case V2
     case V3
@@ -877,6 +982,13 @@ extension VAttribFormat {
     }
 }
 
+/// Converts raw buffer data into an array of normalized `SIMD2<UInt16>` texture coordinates.
+/// Y-values are flipped vertically for texture-space alignment.
+/// - Parameters:
+///   - data: Raw buffer containing packed u16vec2 values.
+///   - vcount: Number of vertices to read.
+///   - stride: Byte stride between each element.
+/// - Returns: Array of flipped and normalized `SIMD2<UInt16>` coordinates.
 func realize_tex_u16vec2(_ data: Data, vcount: Int, stride: Int) -> [SIMD2<UInt16>] {
     let true_stride = max(stride, 2*2);
     
@@ -898,7 +1010,13 @@ func realize_tex_u16vec2(_ data: Data, vcount: Int, stride: Int) -> [SIMD2<UInt1
     }
 }
 
-
+/// Converts raw buffer data into an array of `SIMD2<Float>` texture coordinates.
+/// Y-values are flipped vertically to match standard texture-space conventions.
+/// - Parameters:
+///   - data: Raw buffer containing packed float2 values.
+///   - vcount: Number of vertices to read.
+///   - stride: Byte stride between each element.
+/// - Returns: Array of vertically flipped texture coordinates.
 func realize_tex_vec2(_ data: Data, vcount: Int, stride: Int) -> [SIMD2<Float>] {
     let true_stride = max(stride, 2*4);
     
@@ -920,6 +1038,14 @@ func realize_tex_vec2(_ data: Data, vcount: Int, stride: Int) -> [SIMD2<Float>] 
     }
 }
 
+/// Converts raw buffer data into an array of `SIMD3<Float>` vertex positions or normals.
+/// Currently only supports the `.V3` format.
+/// - Parameters:
+///   - data: Raw binary data buffer.
+///   - fmt: Expected vector format (only `.V3` supported).
+///   - vcount: Number of vertices to read.
+///   - stride: Byte stride between each element.
+/// - Returns: Array of 3D float vectors.
 func realize_vec3(_ data: Data, _ fmt: VAttribFormat, vcount: Int, stride: Int) -> [SIMD3<Float>] {
     if fmt != VAttribFormat.V3 {
         print("No conversions for vformats yet!");
@@ -951,6 +1077,10 @@ func realize_vec3(_ data: Data, _ fmt: VAttribFormat, vcount: Int, stride: Int) 
     }
 }
 
+/// Parses a `Data` blob into an array of `simd_float4x4` matrices.
+/// Assumes tightly packed, aligned 4x4 float matrices.
+/// - Parameter data: Raw buffer to interpret.
+/// - Returns: Array of 4x4 matrices.
 func realize_mat4(_ data: Data) -> [simd_float4x4] {
     let mat_count = data.count / (4*4*4);
     
@@ -970,10 +1100,19 @@ func realize_mat4(_ data: Data) -> [simd_float4x4] {
     }
 }
 
+/// Converts a 4D vector into a 3D vector by dropping the `w` component.
+/// - Parameter v: Input `simd_float4`.
+/// - Returns: The 3D portion of the vector.
 func vec4_to_vec3(_ v : simd_float4) -> simd_float3 {
     return simd_float3(v.x, v.y, v.z)
 }
 
+/// Transforms a 3D vector by a 4x4 matrix using homogeneous coordinates.
+/// Applies perspective division if needed.
+/// - Parameters:
+///   - mat: Transformation matrix.
+///   - v: Input 3D vector.
+/// - Returns: Transformed 3D vector.
 func matrix_multiply(_ mat: simd_float4x4, _ v : simd_float3) -> simd_float3 {
     let v4 = simd_float4(v, 1.0)
     let ret = matrix_multiply(mat, v4)
@@ -982,11 +1121,15 @@ func matrix_multiply(_ mat: simd_float4x4, _ v : simd_float3) -> simd_float3 {
 
 // MARK: Advection
 
+/// Uniquely identifies a particle in an advected line system based on its line and offset index.
+/// Used for correlating particles with their source data in stream flow simulations.
 struct AdvectionID : Equatable {
     let line_id: UInt32
     let offset : UInt32
 }
 
+/// Stores computed state from a stream flow simulation including bounds, particles, and velocity field.
+/// Converts flow lines and tetrahedral data into a structured velocity grid for particle simulation.
 @MainActor
 class NooAdvectorState {
     var lines: [NooFlowLine]
@@ -1001,7 +1144,7 @@ class NooAdvectorState {
         print("Creating debug flow geom")
         
         guard let buffer_view = world.buffer_view_list.get(sf.data) else {
-            print("Missing buffer view")
+            default_log.warning("missing advector buffer view")
             lines = []
             velocity = Grid3D(1, 1, 1, .zero)
             return
@@ -1009,7 +1152,7 @@ class NooAdvectorState {
         
         // since we cant do offsets of offsets here...
         guard let data = buffer_view.get_slice(offset: Int64(sf.offset)) else {
-            print("Unable to get advector data");
+            default_log.warning("missing advector buffer slice")
             lines = []
             velocity = Grid3D(1, 1, 1, .zero)
             return
@@ -1097,6 +1240,8 @@ class NooAdvectorState {
     }
 }
 
+/// Represents a physics simulation context, including advection and flow line support.
+/// Converts tetrahedral flow data into a velocity grid and exposes it to particle systems.
 class NooPhysics : NoodlesComponent{
     var info: MsgPhysicsCreate
     
@@ -1119,9 +1264,14 @@ class NooPhysics : NoodlesComponent{
     func destroy(world: NoodlesWorld) { }
 }
 
+/// Represents a single per-sample attribute in a flow line (e.g., scalar fields).
+/// Holds a flat array of float values matching the number of samples in the parent line.
 struct NooFlowAttr {
     var data: [Float32]
 }
+
+/// Represents a single line in a flow field, consisting of sample positions and attributes.
+/// Lines are extracted from binary data and can be visualized or used for simulation input.
 struct NooFlowLine {
     var sample_count: UInt32
     
@@ -1130,6 +1280,13 @@ struct NooFlowLine {
     var attribs: [NooFlowAttr]
 }
 
+/// Extracts a flow line from binary stream flow data, including positions and attributes.
+/// Handles position parsing and attribute decoding from a known layout.
+/// - Parameters:
+///   - data: Full binary stream flow payload.
+///   - base_offset: Offset into the data where the line starts.
+///   - acount: Number of attributes per sample.
+/// - Returns: A tuple with the parsed line and the updated cursor position.
 func extract_line(_ data: Data, base_offset: Int, acount: Int) -> (NooFlowLine, Int) {
     // print("EX LINE \(base_offset) \(acount)")
     
@@ -1223,6 +1380,10 @@ public class ComponentList<T: NoodlesComponent> {
 }
 
 // MARK: World
+
+/// Central runtime environment managing all components and communication for Ziti.
+/// Handles creation, lookup, and deletion of all entity types, as well as message routing and input states.
+/// Acts as a scene manager, resource coordinator, and protocol bridge.
 @MainActor
 public class NoodlesWorld {
     public weak var comm: NoodlesCommunicator?
@@ -1278,7 +1439,7 @@ public class NoodlesWorld {
         
         external_root = root
         
-        root_controller = await make_root_handle();
+        root_controller = await makeRootHandleEntity();
         
         let bb = root_controller.visualBounds(relativeTo: root_controller.parent)
         var gesture = GestureComponent(canDrag: true, pivotOnDrag: false, canScale: true, canRotate: true)
@@ -1536,6 +1697,8 @@ public class NoodlesWorld {
     }
 }
 
+/// A high-level representation of a method available to the UI or runtime for invocation.
+/// Includes metadata for display, context, and documentation.
 public struct AvailableMethod: Identifiable, Hashable {
     public var id = UUID()
     public var noo_id : NooID
@@ -1545,6 +1708,8 @@ public struct AvailableMethod: Identifiable, Hashable {
     public var context_type: String
 }
 
+/// An observable container for available methods. Used to power UI updates in SwiftUI.
+/// Tracks time-related methods and provides lookup by name.
 @Observable public class MethodListObservable {
     public var available_methods = [AvailableMethod]()
     public var has_step_time = false

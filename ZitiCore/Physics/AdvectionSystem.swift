@@ -46,7 +46,7 @@ func make_advection_component(context: ParticleContext) -> ParticleAdvectionComp
     
     let part_len = Int(context.number_particles) * MemoryLayout<AParticle>.stride
     
-    let glyph_info = make_glyph(shape_cube)
+    let glyph_info = generateGlyphDescription(shape_cube)
     
     //print("Making advection component for \(context.number_particles)")
     //print("Glyph info \(MemoryLayout<float4x4>.stride)")

@@ -1163,7 +1163,7 @@ struct GeomPatch {
 }
 
 func msg_realize_index(_ bytes: Data, _ idx: GeomIndex) -> [UInt32] {
-    if idx.stride != 0 {
+    if idx.stride > 0 {
         fatalError("Unable to handle strided index buffers")
     }
     
