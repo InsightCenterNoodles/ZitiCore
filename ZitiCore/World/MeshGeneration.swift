@@ -86,7 +86,7 @@ func patchToGlyph(_ patch : GeomPatch?,
             default_log.error("Missing buffer view for attribute \(attribute.semantic)")
             return nil
         };
-       
+        
         guard let format_stride = formatToStride(format: attribute.format) else {
             default_log.error("Unknown format for attribute \(attribute.semantic)")
             return nil
