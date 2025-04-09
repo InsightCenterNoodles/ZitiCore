@@ -1423,7 +1423,7 @@ public class NoodlesWorld {
     
     internal var invoke_mapper = [String:(MsgMethodReply) -> ()]()
     
-    var set_item_input_cached : Bool = false
+    var set_item_input_cached : Bool = true
     
     public var root_entity : Entity
     public var root_controller: Entity
@@ -1445,6 +1445,7 @@ public class NoodlesWorld {
         var gesture = GestureComponent(canDrag: true, pivotOnDrag: false, canScale: true, canRotate: true)
         gesture.delegateToParent = true
         gesture.lockRotateUpAxis = true
+        gesture.canScale = false
         let input = InputTargetComponent()
         let coll  = CollisionComponent(shapes: [ShapeResource.generateSphere(radius: bb.boundingRadius)])
         root_controller.components.set(gesture)
@@ -1472,6 +1473,8 @@ public class NoodlesWorld {
 //                                      materials: [ PhysicallyBasedMaterial() ])
 //        
 //        root_entity.addChild(test_entity)
+        
+        set_all_entity_input(enabled: true)
         
         print("New NOODLES world", Unmanaged.passUnretained(self).toOpaque())
     }
